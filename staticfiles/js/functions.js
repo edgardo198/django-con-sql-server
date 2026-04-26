@@ -40,14 +40,15 @@ function submit_with_ajax(url, title, content, parameters, callback) {
                         processData: false,
                         contentType: false,
                     }).done(function (data) {
-                        console.log(data);
                         if (!data.hasOwnProperty('error')) {
-                            callback();
+                            if (typeof callback === 'function') {
+                                callback();
+                            }
                             return false;
                         }
                         message_error(data.error);
                     }).fail(function (jqXHR, textStatus, errorThrown) {
-                        alert(textStatus + ': ' + errorThrown);
+                        message_error(textStatus + ': ' + errorThrown);
                     }).always(function (data) {
 
                     });

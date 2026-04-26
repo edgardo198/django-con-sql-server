@@ -1,36 +1,81 @@
-var tblProducts;
-var vents = {
+var tblSaleProducts;
+
+var saleDetail = {
     items: {
         cli: '',
+        cash_session: '',
+        document_type: 'invoice',
+        payment_term: 'cash',
         date_joined: '',
+        due_date: '',
+        discount: 0.00,
         subtotal: 0.00,
-        iva: 0.00,
+        tax_total: 0.00,
         total: 0.00,
+        amount_paid: 0.00,
+        balance: 0.00,
+        observation: '',
         products: []
     },
-    calculate_invoice: function () {
+    calculate: function () {
         var subtotal = 0.00;
-        var iva = $('input[name="iva"]').val();
-        $.each(this.items.products, function (pos, dict) {
-            dict.pos=pos
-            dict.subtotal = dict.cant * parseFloat(dict.pvp);
-            subtotal+=dict.subtotal;
+        var taxTotal = 0.00;
+        var globalDiscount = parseFloat($('input[name="discount"]').val() || 0);
+        var amountPaid = parseFloat($('input[name="amount_paid"]').val() || 0);
+
+        $.each(this.items.products, function (pos, item) {
+            item.pos = pos;
+            item.price = parseFloat(item.price || item.pvp || 0);
+            item.cost = parseFloat(item.cost || 0);
+            item.cant = parseInt(item.cant || 1);
+            item.tax_rate = parseFloat(item.tax_rate || 0);
+            item.discount = parseFloat(item.discount || 0);
+            item.subtotal_before_tax = (item.price * item.cant) - item.discount;
+            if (item.subtotal_before_tax < 0) {
+                item.subtotal_before_tax = 0;
+            }
+            item.tax_amount = item.subtotal_before_tax * (item.tax_rate / 100);
+            item.subtotal = item.subtotal_before_tax + item.tax_amount;
+            subtotal += item.subtotal_before_tax;
+            taxTotal += item.tax_amount;
         });
+
+        this.items.discount = globalDiscount;
         this.items.subtotal = subtotal;
-        this.items.iva = this.items.subtotal * iva;
-        this.items.total = this.items.subtotal + this.items.iva;
+        this.items.tax_total = taxTotal;
+        this.items.total = (subtotal + taxTotal) - globalDiscount;
+        this.items.amount_paid = amountPaid;
+        this.items.balance = this.items.total - amountPaid;
 
         $('input[name="subtotal"]').val(this.items.subtotal.toFixed(2));
-        $('input[name="ivacalc"]').val(this.items.iva.toFixed(2));
+        $('input[name="tax_total"]').val(this.items.tax_total.toFixed(2));
+        $('input[name="iva"]').val(this.items.tax_total.toFixed(2));
         $('input[name="total"]').val(this.items.total.toFixed(2));
+        $('input[name="balance"]').val(this.items.balance.toFixed(2));
     },
     add: function (item) {
+        var existing = this.items.products.find(function (product) {
+            return String(product.id) === String(item.id);
+        });
+
+        if (existing) {
+            existing.cant = parseInt(existing.cant || 1) + 1;
+            this.list();
+            return;
+        }
+
+        item.price = parseFloat(item.price || item.pvp || 0);
+        item.cost = parseFloat(item.cost || 0);
+        item.cant = parseInt(item.cant || 1);
+        item.tax_rate = parseFloat(item.tax_rate || 0);
+        item.discount = parseFloat(item.discount || 0);
         this.items.products.push(item);
         this.list();
     },
     list: function () {
-        this.calculate_invoice();
-        tblProducts=$('#tblProducts').DataTable({
+        this.calculate();
+
+        tblSaleProducts = $('#tblSaleProducts').DataTable({
             responsive: true,
             autoWidth: false,
             destroy: true,
@@ -39,8 +84,9 @@ var vents = {
                 {"data": "id"},
                 {"data": "name"},
                 {"data": "cat.name"},
-                {"data": "pvp"},
+                {"data": "price"},
                 {"data": "cant"},
+                {"data": "tax_rate"},
                 {"data": "subtotal"},
             ],
             columnDefs: [
@@ -48,181 +94,58 @@ var vents = {
                     targets: [0],
                     class: 'text-center',
                     orderable: false,
-                    render: function (data, type, row) {
+                    render: function () {
                         return '<a rel="remove" class="btn btn-danger btn-xs btn-flat"><i class="fas fa-trash-alt"></i></a>';
                     }
                 },
                 {
-                    targets: [-3],
+                    targets: [3],
                     class: 'text-center',
                     orderable: false,
                     render: function (data, type, row) {
-                        return 'L'+ parseFloat(data).toFixed(2);
+                        return '<input type="number" name="price" class="form-control form-control-sm" min="0" step="0.01" value="' + parseFloat(row.price || row.pvp || 0).toFixed(2) + '">';
                     }
                 },
                 {
-                    targets: [-2],
+                    targets: [4],
                     class: 'text-center',
                     orderable: false,
                     render: function (data, type, row) {
-                        return '<input type="text" name="cant" class="form-control form-control-sm input-sm" autocomplete="off" value="' + row.cant + '">';
+                        return '<input type="number" name="cant" class="form-control form-control-sm" min="1" step="1" value="' + parseInt(row.cant || 1) + '">';
                     }
                 },
                 {
-                    targets: [-1],
+                    targets: [5],
                     class: 'text-center',
                     orderable: false,
-                    render: function (data, type, row) {
-                        return 'L'+ parseFloat(data).toFixed(2);
+                    render: function (data) {
+                        return parseFloat(data || 0).toFixed(2) + '%';
                     }
                 },
-            ],
-            rowCallback(row, data, displayNum, displayIndex, dataIndex){
-                $(row).find('input[name="cant"]').TouchSpin({
-                    min: 1,
-                    max: 9999999,
-                    step: 1,
-                    decimals: 0,
-                    boostat: 5,
-                    maxboostedstep: 10
-                })
-            },
-            initComplete: function (settings, json) {
-
-            }
+                {
+                    targets: [6],
+                    class: 'text-center',
+                    orderable: false,
+                    render: function (data) {
+                        return 'L ' + parseFloat(data || 0).toFixed(2);
+                    }
+                }
+            ]
         });
-    },
-};
-
-function formatRepo(repo) {
-    if (repo.loading) {
-        return repo.text;
     }
-
-    var option = $(
-        '<div class="wrapper container">'+
-        '<div class="row">' +
-        '<div class="col-lg-1">' +
-        '<img src="' + repo.image + '" class="img-fluid img-thumbnail d-block mx-auto rounded">' +
-        '</div>' +
-        '<div class="col-lg-11 text-left shadow-sm">' +
-        //'<br>' +
-        '<p style="margin-bottom: 0;">' +
-        '<b>Nombre:</b> ' + repo.name + '<br>' +
-        '<b>Categoría:</b> ' + repo.cat.name + '<br>' +
-        '<b>PVP:</b> <span class="badge badge-warning">L. '+repo.pvp+'</span>'+
-        '</p>' +
-        '</div>' +
-        '</div>' +
-        '</div>');
-
-    return option;
-}
+};
 
 $(function () {
     $('.select2').select2({
-        theme: "bootstrap4",
+        theme: 'bootstrap4',
         language: 'es'
     });
 
-    $('#date_joined').datetimepicker({
-        format: 'YYYY-MM-DD',
-        date: moment().format("YYYY-MM-DD"),
-        locale: 'es',
-        //minDate: moment().format("YYYY-MM-DD")
-    });
+    saleDetail.items.products = window.saleInitialDetail || [];
+    saleDetail.list();
 
-    $("input[name='iva']").TouchSpin({
-        min: 0,
-        max: 100,
-        step: 0.01,
-        decimals: 2,
-        boostat: 5,
-        maxboostedstep: 10,
-        postfix: '%'
-    }).on('change', function () {
-        vents.calculate_invoice();
-    })
-    .val(0.15);
-
-    // search products
-
-    /*$('input[name="search"]').autocomplete({
-        source: function (request, response) {
-            $.ajax({
-                url: window.location.pathname,
-                type: 'POST',
-                data: {
-                    'action': 'search_products',
-                    'term': request.term
-                },
-                dataType: 'json',
-            }).done(function (data) {
-                response(data);
-            }).fail(function (jqXHR, textStatus, errorThrown) {
-                //alert(textStatus + ': ' + errorThrown);
-            }).always(function (data) {
-
-            });
-        },
-        delay: 500,
-        minLength: 1,
-        select: function (event, ui) {
-            event.preventDefault();
-            console.clear();
-            ui.item.cant = 1;
-            ui.item.subtotal = 0.00;
-            console.log(vents.items);
-            vents.add(ui.item);
-            $(this).val('');
-        }
-    });*/
-    $('.btnRemoveAll').on('click', function(){
-        if(vents.items.products.length===0) return false;
-        alert_action('Notificacion', '¿Estas seguro de eliminar todos los productos de tu detalle?',function(){
-            vents.items.products = [];
-            vents.list();
-        });
-    });
-    //evento cantidad
-    $('#tblProducts tbody')
-    .on('click', 'a[rel="remove"]', function(){
-        var tr=tblProducts.cell($(this).closest('td, li')).index();
-        alert_action('Notificacion', '¿Estas seguro de eliminar el productos de tu detalle?',function(){
-            vents.items.products.splice(tr.row, 1);
-            vents.list();
-        });
-    })
-    .on('change', 'input[name="cant"]', function(){
-        console.clear();
-        var cant = parseInt($(this).val());
-        var tr=tblProducts.cell($(this).closest('td, li')).index();
-        vents.items.products[tr.row].cant= cant;
-        vents.calculate_invoice();
-        $('td:eq(5)', tblProducts.row(tr.row).node()).html('L'+ vents.items.products[tr.row].subtotal.toFixed(2));
-    });
-    
-    $('.btnClearSearch').on('click', function () {
-        $('input[name="search"]').val('').focus();
-    });
-    //evento submit action
-    $('form').on('submit', function (e) {
-        e.preventDefault();
-        if(vents.items.products.length===0)
-        { message_error('Debe ingresar al menos un producto');
-            return false;}
-        vents.items.date_joined = $('input[name="date_joined"]').val();
-        vents.items.cli = $('select[name="cli"]').val();
-        var parameters = new FormData();
-        parameters.append('action', $('input[name="action"]').val());
-        parameters.append('vents', JSON.stringify(vents.items));
-        submit_with_ajax(window.location.pathname, 'Notificación', '¿Estas seguro de realizar la siguiente acción?', parameters, function () {
-            location.href = '/erp/sale/list/';
-        });
-    });
-    
-    $('select[name="search"]').select2({
-        theme: "bootstrap4",
+    $('.sale-product-search').select2({
+        theme: 'bootstrap4',
         language: 'es',
         allowClear: true,
         ajax: {
@@ -230,27 +153,87 @@ $(function () {
             type: 'POST',
             url: window.location.pathname,
             data: function (params) {
-                var queryParameters = {
+                return {
                     term: params.term,
                     action: 'search_products'
-                }
-                return queryParameters;
+                };
             },
             processResults: function (data) {
                 return {
                     results: data
                 };
-            },
+            }
         },
-        placeholder: 'Ingrese una descripción',
-        minimumInputLength: 1,
-        templateResult: formatRepo,
+        placeholder: 'Ingrese una descripcion',
+        minimumInputLength: 1
     }).on('select2:select', function (e) {
         var data = e.params.data;
-        data.cant = 1;
-        data.subtotal = 0.00;
-        vents.add(data);
-        $(this).val('').trigger('change.select2');
+        data.cant = parseInt(data.cant || 1);
+        data.price = parseFloat(data.price || data.pvp || 0);
+        data.cost = parseFloat(data.cost || 0);
+        data.tax_rate = parseFloat(data.tax_rate || 0);
+        data.discount = parseFloat(data.discount || 0);
+        saleDetail.add(data);
+        $(this).val(null).trigger('change');
     });
-  
+
+    $('.btnRemoveAll').on('click', function () {
+        if (saleDetail.items.products.length === 0) {
+            return false;
+        }
+        alert_action('Notificacion', 'Estas seguro de eliminar todos los productos del detalle?', function () {
+            saleDetail.items.products = [];
+            saleDetail.list();
+        });
+    });
+
+    $('#tblSaleProducts tbody')
+        .on('click', 'a[rel="remove"]', function () {
+            var tr = tblSaleProducts.cell($(this).closest('td, li')).index();
+            alert_action('Notificacion', 'Estas seguro de eliminar este producto?', function () {
+                saleDetail.items.products.splice(tr.row, 1);
+                saleDetail.list();
+            });
+        })
+        .on('change', 'input[name="price"]', function () {
+            var tr = tblSaleProducts.cell($(this).closest('td, li')).index();
+            saleDetail.items.products[tr.row].price = parseFloat($(this).val() || 0);
+            saleDetail.list();
+        })
+        .on('change', 'input[name="cant"]', function () {
+            var tr = tblSaleProducts.cell($(this).closest('td, li')).index();
+            saleDetail.items.products[tr.row].cant = parseInt($(this).val() || 1);
+            saleDetail.list();
+        });
+
+    $('input[name="discount"], input[name="amount_paid"]').on('input', function () {
+        saleDetail.calculate();
+    });
+
+    $('form').on('submit', function (e) {
+        e.preventDefault();
+
+        if (saleDetail.items.products.length === 0) {
+            message_error('Debe ingresar al menos un producto');
+            return false;
+        }
+
+        saleDetail.items.cli = $('select[name="cli"]').val();
+        saleDetail.items.cash_session = $('select[name="cash_session"]').val();
+        saleDetail.items.document_type = $('select[name="document_type"]').val();
+        saleDetail.items.payment_term = $('select[name="payment_term"]').val();
+        saleDetail.items.date_joined = $('input[name="date_joined"]').val();
+        saleDetail.items.due_date = $('input[name="due_date"]').val();
+        saleDetail.items.discount = $('input[name="discount"]').val();
+        saleDetail.items.amount_paid = $('input[name="amount_paid"]').val();
+        saleDetail.items.observation = $('textarea[name="observation"]').val();
+
+        var parameters = new FormData();
+        parameters.append('action', $('input[name="action"]').val());
+        parameters.append('sale', JSON.stringify(saleDetail.items));
+
+        submit_with_ajax(window.location.pathname, 'Notificacion', 'Estas seguro de realizar la siguiente accion?', parameters, function () {
+            location.href = '/erp/sale/list/';
+        });
+    });
 });
