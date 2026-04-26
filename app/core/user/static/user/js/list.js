@@ -1,4 +1,6 @@
 $(function () {
+    var config = window.userListConfig || {};
+
     $('#data').DataTable({
         responsive: true,
         autoWidth: false,
@@ -18,16 +20,25 @@ $(function () {
             {"data": "username"},
             {"data": "date_joined"},
             {"data": "image"},
+            {"data": "current_organization"},
             {"data": "groups"},
             {"data": "id"},
         ],
         columnDefs: [
             {
-                targets: [-3],
+                targets: [-4],
                 class: 'text-center',
                 orderable: false,
                 render: function (data, type, row) {
                     return '<img src="'+row.image+'" class="img-fluid mx-auto d-block" style="width: 20px; height: 20px;">';
+                }
+            },
+            {
+                targets: [-3],
+                class: 'text-center',
+                orderable: false,
+                render: function (data) {
+                    return data ? '<span class="badge badge-info">' + data.name + '</span>' : '<span class="badge badge-secondary">Sin tienda</span>';
                 }
             },
             {
@@ -36,9 +47,12 @@ $(function () {
                 orderable: false,
                 render: function (data, type, row) {
                     var html = '';
-                    $.each(row.groups, function (key, value) {
-                        html += '<span class="badge badge-success">' + value.name + '</span> ';
+                    $.each(row.roles || [], function (key, value) {
+                        html += '<span class="badge badge-success">' + value + '</span> ';
                     });
+                    if (!html) {
+                        return '<span class="badge badge-secondary">Sin rol</span>';
+                    }
                     return html;
                 }
             },
@@ -47,8 +61,16 @@ $(function () {
                 class: 'text-center',
                 orderable: false,
                 render: function (data, type, row) {
-                    var buttons = '<a href="/user/update/' + row.id + '/" class="btn btn-warning btn-xs btn-flat"><i class="fas fa-edit"></i></a> ';
-                    buttons += '<a href="/user/delete/' + row.id + '/" type="button" class="btn btn-danger btn-xs btn-flat"><i class="fas fa-trash-alt"></i></a>';
+                    var buttons = '';
+                    if (config.canChange) {
+                        buttons += '<a href="/user/update/' + row.id + '/" class="btn btn-warning btn-xs btn-flat"><i class="fas fa-edit"></i></a> ';
+                    }
+                    if (config.canDelete && row.id !== config.currentUserId) {
+                        buttons += '<a href="/user/delete/' + row.id + '/" type="button" class="btn btn-danger btn-xs btn-flat"><i class="fas fa-trash-alt"></i></a>';
+                    }
+                    if (!buttons) {
+                        return '<span class="text-muted">Sin acciones</span>';
+                    }
                     return buttons;
                 }
             },

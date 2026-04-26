@@ -12,7 +12,16 @@
                 <div class="container-fluid">
                     <div class="row">
                         <div class="col-sm-6">
-                            <h1 class="m-0 text-dark"><small>Bienvenido {{ request.user.get_full_name }}</small></h1>
+                            <h1 class="m-0 text-dark">
+                                <small>
+                                    Bienvenido {{ request.user.get_full_name|default:request.user.username }}
+                                    {% with current_organization=request.user.get_current_organization %}
+                                        {% if current_organization %}
+                                            | {{ current_organization.name }}
+                                        {% endif %}
+                                    {% endwith %}
+                                </small>
+                            </h1>
                         </div>
                         <div class="col-sm-6">
                             <ol class="breadcrumb float-sm-right">

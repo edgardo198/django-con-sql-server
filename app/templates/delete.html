@@ -14,7 +14,7 @@
                 <input type="hidden" name="action" value="{{ action }}">
                 {% if form.errors %}
                     <div class="alert alert-danger alert-dismissible">
-                        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+                        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
                         <h5><i class="icon fas fa-ban"></i> Ha ocurrido un error al querer guardar el registro</h5>
                         <ul>
                             {% for field in form %}
@@ -26,8 +26,8 @@
                     </div>
                 {% endif %}
                 <div class="alert alert-danger alert-dismissible">
-                    <h5><i class="icon fas fa-ban"></i> Notificación!</h5>
-                    ¿Estas seguro de eliminar el registro N°{{ object.id }}?
+                    <h5><i class="icon fas fa-ban"></i> Notificacion</h5>
+                    Estas seguro de eliminar el registro N.{{ object.id }}?
                 </div>
             </div>
             <div class="card-footer">
@@ -44,7 +44,7 @@
         $('form').on('submit', function (e) {
             e.preventDefault();
             var parameters = new FormData(this);
-            submit_with_ajax(window.location.pathname, 'Notificación', '¿Estas seguro de eliminar el siguiente registro?', parameters, function () {
+            submit_with_ajax(window.location.pathname, 'Notificacion', 'Estas seguro de eliminar el siguiente registro?', parameters, function () {
                 location.href = '{{ list_url }}';
             });
         });

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Ticket venta {{ sale.id }}</title>
+    <style>
+        @page {
+            size: 80mm auto;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 80mm;
+            margin: 0 auto;
+            padding: 4mm;
+            color: #000;
+            background: #fff;
+            font-family: "Courier New", monospace;
+            font-size: 11px;
+            line-height: 1.25;
+        }
+
+        .ticket {
+            width: 100%;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .right {
+            text-align: right;
+        }
+
+        .muted {
+            font-size: 10px;
+        }
+
+        .bold {
+            font-weight: bold;
+        }
+
+        .divider {
+            border-top: 1px dashed #000;
+            margin: 6px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 2px 0;
+            vertical-align: top;
+        }
+
+        .product-name {
+            width: 100%;
+            display: block;
+            word-break: break-word;
+        }
+
+        .totals td:first-child {
+            text-align: right;
+            padding-right: 6px;
+        }
+
+        .actions {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .actions button {
+            padding: 8px 12px;
+            border: 1px solid #111;
+            background: #111;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        @media print {
+            body {
+                margin: 0;
+                padding: 2mm;
+            }
+
+            .actions {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="ticket">
+    <div class="center">
+        <div class="bold">{{ company_name|upper }}</div>
+        <div>RTN: {{ company_rtn }}</div>
+        <div>{{ company_address }}</div>
+        {% if company_phone %}
+            <div>Tel: {{ company_phone }}</div>
+        {% endif %}
+    </div>
+
+    <div class="divider"></div>
+
+    <div>
+        <div><span class="bold">Ticket:</span> {{ sale.number|default:sale.id }}</div>
+        <div><span class="bold">Venta:</span> #{{ sale.id }}</div>
+        <div><span class="bold">Fecha:</span> {{ sale.date_joined|date:"d/m/Y" }}</div>
+        <div><span class="bold">Imp:</span> {{ printed_at|date:"d/m/Y H:i" }}</div>
+        <div><span class="bold">Cliente:</span> {{ sale.cli.get_full_name|default:"Consumidor final" }}</div>
+        {% if sale.cli.rtn %}
+            <div><span class="bold">RTN cliente:</span> {{ sale.cli.rtn }}</div>
+        {% elif sale.cli.dni %}
+            <div><span class="bold">DNI cliente:</span> {{ sale.cli.dni }}</div>
+        {% endif %}
+        {% if sale.cash_session %}
+            <div><span class="bold">Caja:</span> {{ sale.cash_session.id }}</div>
+        {% endif %}
+    </div>
+
+    <div class="divider"></div>
+
+    <table>
+        <thead>
+        <tr>
+            <th>Producto</th>
+            <th class="right">Cant</th>
+            <th class="right">Total</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for detail in sale.details.all %}
+            <tr>
+                <td colspan="3">
+                    <span class="product-name">{{ detail.prod.name }}</span>
+                    <span class="muted">L {{ detail.price|floatformat:2 }} c/u</span>
+                </td>
+            </tr>
+            <tr>
+                <td class="muted">
+                    {% if detail.prod.category %}
+                        {{ detail.prod.category.name }}
+                    {% elif detail.prod.cat %}
+                        {{ detail.prod.cat.name }}
+                    {% else %}
+                        Sin categoria
+                    {% endif %}
+                </td>
+                <td class="right">{{ detail.cant }}</td>
+                <td class="right">L {{ detail.subtotal|floatformat:2 }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="divider"></div>
+
+    <table class="totals">
+        <tbody>
+        <tr>
+            <td>Subtotal</td>
+            <td class="right">L {{ sale.subtotal|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>Descuento</td>
+            <td class="right">L {{ sale.discount|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>ISV</td>
+            <td class="right">L {{ sale.tax_total|floatformat:2 }}</td>
+        </tr>
+        <tr class="bold">
+            <td>Total</td>
+            <td class="right">L {{ sale.total|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>Pagado</td>
+            <td class="right">L {{ sale.amount_paid|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>Saldo</td>
+            <td class="right">L {{ sale.balance|floatformat:2 }}</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <div class="divider"></div>
+
+    {% if fiscal_data and fiscal_data.cai %}
+        <div class="muted">
+            <div>CAI: {{ fiscal_data.cai }}</div>
+            <div>Rango: {{ fiscal_data.invoice_prefix }}{{ fiscal_data.invoice_range_start|stringformat:"08d" }} al {{ fiscal_data.invoice_prefix }}{{ fiscal_data.invoice_range_end|stringformat:"08d" }}</div>
+            {% if fiscal_data.cai_end_date %}
+                <div>Fecha limite: {{ fiscal_data.cai_end_date|date:"d/m/Y" }}</div>
+            {% endif %}
+        </div>
+        <div class="divider"></div>
+    {% endif %}
+
+    <div class="center">
+        <div>Gracias por su compra</div>
+        <div class="muted">Conserve este ticket</div>
+    </div>
+
+    <div class="actions">
+        <button type="button" onclick="window.print()">Imprimir ticket</button>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('autoprint') !== '1') {
+            return;
+        }
+
+        setTimeout(function () {
+            window.focus();
+            window.print();
+        }, 350);
+    })();
+</script>
+</body>
+</html>

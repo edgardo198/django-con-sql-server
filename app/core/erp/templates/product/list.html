@@ -1,20 +1,85 @@
 {% extends 'list.html' %}
-{% load static %}
-{% block head_list %}
-    <script src="{% static 'product/js/list.js' %}"></script>
+
+{% block search_filters %}
+    <form method="get" action="." class="mb-3">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input name="search" type="text" class="form-control" placeholder="Buscar por nombre o codigo de barras" value="{{ search }}">
+                    <div class="input-group-append">
+                        <button class="btn btn-primary btn-flat" type="submit">
+                            <i class="fas fa-search"></i> Buscar
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select name="stock_status" class="form-control" onchange="this.form.submit()">
+                    <option value="">Todos los stocks</option>
+                    <option value="available"{% if stock_status == 'available' %} selected{% endif %}>Disponibles</option>
+                    <option value="low"{% if stock_status == 'low' %} selected{% endif %}>Stock bajo</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-right">
+                <a href="{{ list_url }}" class="btn btn-secondary btn-flat">
+                    <i class="fas fa-times-circle"></i> Limpiar
+                </a>
+            </div>
+        </div>
+    </form>
 {% endblock %}
 
 {% block columns %}
     <tr>
-        <th scope="col" style="width: 10%;">Nro</th>
-        <th scope="col" style="width: 20%;">Nombre</th>
-        <th scope="col" style="width: 25%;">Categoria</th>
-        <th scope="col" style="width: 10%;">Imagen</th>
-        <th scope="col" style="width: 15%;">Precio</th>
-        <th scope="col" style="width: 20%;">Opciones</th>
+        <th scope="col">Nro</th>
+        <th scope="col">Nombre</th>
+        <th scope="col">Categoria</th>
+        <th scope="col">Codigo</th>
+        <th scope="col">Costo</th>
+        <th scope="col">Precio</th>
+        <th scope="col">Stock</th>
+        <th scope="col">Estado</th>
+        <th scope="col">Opciones</th>
     </tr>
 {% endblock %}
 
-{% block javascript %}
-
+{% block rows %}
+    {% for product in object_list %}
+        <tr>
+            <td>{{ product.id }}</td>
+            <td>{{ product.name }}</td>
+            <td>{{ product.category.name|default:product.cat.name|default:'-' }}</td>
+            <td>{{ product.display_code }}</td>
+            <td>L {{ product.cost|floatformat:2 }}</td>
+            <td>L {{ product.pvp|floatformat:2 }}</td>
+            <td>
+                {{ product.stock }}
+                {% if product.stock_alert %}
+                    <span class="badge badge-warning">Minimo {{ product.min_stock }}</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if product.is_active %}
+                    <span class="badge badge-success">Activo</span>
+                {% else %}
+                    <span class="badge badge-secondary">Inactivo</span>
+                {% endif %}
+            </td>
+            <td class="text-center">
+                {% if can_change %}
+                    <a href="{% url 'erp:product_update' product.id %}" class="btn btn-primary btn-xs btn-flat">
+                        <i class="fas fa-edit"></i> Editar
+                    </a>
+                {% endif %}
+                {% if can_delete %}
+                    <a href="{% url 'erp:product_delete' product.id %}" class="btn btn-danger btn-xs btn-flat">
+                        <i class="fas fa-trash-alt"></i> Eliminar
+                    </a>
+                {% endif %}
+                {% if not can_change and not can_delete %}
+                    <span class="text-muted">Sin acciones</span>
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
 {% endblock %}

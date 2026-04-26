@@ -1,53 +1,63 @@
 {% extends 'list.html' %}
-{% load static %}
-{% block head_list %}
-    <script src="{% static 'sale/js/list.js' %}"></script>
-{% endblock %}
 
 {% block columns %}
     <tr>
         <th scope="col">Nro</th>
-        <th scope="col">Nombre</th>
-        <th scope="col">Apellido</th>
-        <th scope="col">Fecha de registro</th>
-        <th scope="col">Subtotal</th>
-        <th scope="col">Iva</th>
+        <th scope="col">Cliente</th>
+        <th scope="col">Fecha</th>
+        <th scope="col">Documento</th>
+        <th scope="col">Condicion</th>
+        <th scope="col">ISV</th>
         <th scope="col">Total</th>
+        <th scope="col">Saldo</th>
+        <th scope="col">Estado</th>
         <th scope="col">Opciones</th>
     </tr>
 {% endblock %}
 
 {% block rows %}
-
-{% endblock %}
-
-{% block javascript %}
-  <div class="modal fade" id="myModalDet" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="exampleModalLabel"><i class="fas fa-fas fa-shopping-bag"></i>  Detalle Productos</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-        <table class="table table-bordered" id="tblDel">
-            <thead>
-                <tr>
-                    <th>Producto </th>
-                    <th>Categoria</th>
-                    <th>Precio</th>
-                    <th>Cantidad</th>
-                    <th>Sub Total</th>
-                </tr>
-            </thead>
-            <tbody>
-            </tbody>
-        </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
+    {% for sale in object_list %}
+        <tr>
+            <td>{{ sale.id }}</td>
+            <td>{{ sale.cli.get_full_name }}</td>
+            <td>{{ sale.date_joined|date:'Y-m-d' }}</td>
+            <td>{{ sale.get_document_type_display }}{% if sale.number %}<br><small>{{ sale.number }}</small>{% endif %}</td>
+            <td>{{ sale.get_payment_term_display }}</td>
+            <td>L {{ sale.tax_total|floatformat:2 }}</td>
+            <td>L {{ sale.total|floatformat:2 }}</td>
+            <td>L {{ sale.balance|floatformat:2 }}</td>
+            <td>
+                {% if sale.status == 'confirmed' %}
+                    <span class="badge badge-success">{{ sale.get_status_display }}</span>
+                {% elif sale.status == 'cancelled' %}
+                    <span class="badge badge-danger">{{ sale.get_status_display }}</span>
+                {% else %}
+                    <span class="badge badge-secondary">{{ sale.get_status_display }}</span>
+                {% endif %}
+            </td>
+            <td class="text-center">
+                {% if can_change and sale.status == 'draft' %}
+                    <a href="{% url 'erp:sale_update' sale.id %}" class="btn btn-warning btn-xs btn-flat">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                    <a href="{% url 'erp:sale_confirm' sale.id %}" class="btn btn-success btn-xs btn-flat">
+                        <i class="fas fa-check"></i>
+                    </a>
+                {% endif %}
+                {% if can_change and sale.status == 'confirmed' %}
+                    <a href="{% url 'erp:sale_cancel' sale.id %}" class="btn btn-secondary btn-xs btn-flat">
+                        <i class="fas fa-ban"></i>
+                    </a>
+                {% endif %}
+                {% if can_delete and sale.status == 'draft' %}
+                    <a href="{% url 'erp:sale_delete' sale.id %}" class="btn btn-danger btn-xs btn-flat">
+                        <i class="fas fa-trash-alt"></i>
+                    </a>
+                {% endif %}
+                <a href="{% url 'erp:sale_invoice_pdf' sale.id %}" target="_blank" class="btn btn-info btn-xs btn-flat">
+                    <i class="fas fa-file-pdf"></i>
+                </a>
+            </td>
+        </tr>
+    {% endfor %}
 {% endblock %}

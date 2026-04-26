@@ -16,6 +16,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from .core.homepage.views import IndexView
+from .core.erp.views.supplier.views import SupplierCreateView, SupplierDeleteView, SupplierListView, SupplierUpdateView
+from .core.user.views import OrganizationListView, SwitchOrganizationView
 
 from django.conf import settings
 from django.conf.urls.static import static
@@ -23,13 +25,22 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('login/', include('app.core.login.urls')),
-    path('erp/', include('app.core.erp.urls')),
+    # Compatibilidad con codigo legado que usa reverse('supplier_list')
+    # en lugar de reverse('erp:supplier_list').
+    path('erp/supplier/list/', SupplierListView.as_view(), name='supplier_list'),
+    path('erp/supplier/add/', SupplierCreateView.as_view(), name='supplier_create'),
+    path('erp/supplier/update/<int:pk>/', SupplierUpdateView.as_view(), name='supplier_update'),
+    path('erp/supplier/delete/<int:pk>/', SupplierDeleteView.as_view(), name='supplier_delete'),
+    path('erp/', include(('app.core.erp.urls', 'erp'), namespace='erp')),
     path('report/', include('app.core.reports.urls')),
-    path('user/', include('app.core.user.urls')),
+    path('user/', include(('app.core.user.urls', 'user'), namespace='user')),
+    path('user/organization/list/', OrganizationListView.as_view(), name='organization_list'),
+    path('user/organization/switch/<int:pk>/', SwitchOrganizationView.as_view(), name='organization_switch'),
     path('', IndexView.as_view(), name='index'),
 ]
 
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 
 

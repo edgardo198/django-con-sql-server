@@ -1,0 +1,44 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+    <form method="post" action=".">
+        {% csrf_token %}
+        <div class="card card-primary">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-check-circle"></i>
+                    {{ title }}
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <h5><i class="icon fas fa-exclamation-triangle"></i> Confirmacion</h5>
+                    Esta seguro de {{ action_label|lower }} la venta N.{{ object.id }} del cliente {{ object.cli.get_full_name }}?
+                </div>
+                {% if action_label == 'Anular' %}
+                    <div class="form-group">
+                        <label for="id_reason">Motivo:</label>
+                        <textarea name="reason" id="id_reason" class="form-control" rows="3" placeholder="Motivo de anulacion"></textarea>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="card-footer">
+                <button type="submit" class="btn btn-primary btn-flat">
+                    <i class="fas fa-save"></i> Si, aceptar
+                </button>
+                <a href="{{ list_url }}" class="btn btn-danger btn-flat">
+                    <i class="fas fa-times"></i> Cancelar
+                </a>
+            </div>
+        </div>
+    </form>
+    <script>
+        $('form').on('submit', function (e) {
+            e.preventDefault();
+            var parameters = new FormData(this);
+            submit_with_ajax(window.location.pathname, 'Notificacion', 'Estas seguro de ejecutar esta accion?', parameters, function () {
+                location.href = '{{ list_url }}';
+            });
+        });
+    </script>
+{% endblock %}

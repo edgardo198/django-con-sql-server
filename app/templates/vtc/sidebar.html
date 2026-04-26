@@ -1,72 +1,189 @@
 {% load static %}
+{% url 'user:organization_list' as organization_list_url %}
+{% if not organization_list_url %}
+    {% url 'organization_list' as organization_list_url %}
+{% endif %}
+{% url 'erp:supplier_list' as supplier_list_url %}
+{% if not supplier_list_url %}
+    {% url 'supplier_list' as supplier_list_url %}
+{% endif %}
+{% url 'erp:taxrate_list' as taxrate_list_url %}
+{% if not taxrate_list_url %}
+    {% url 'taxrate_list' as taxrate_list_url %}
+{% endif %}
+{% url 'erp:fiscaldata_manage' as fiscaldata_manage_url %}
+{% if not fiscaldata_manage_url %}
+    {% url 'fiscaldata_manage' as fiscaldata_manage_url %}
+{% endif %}
+{% url 'erp:purchase_list' as purchase_list_url %}
+{% if not purchase_list_url %}
+    {% url 'purchase_list' as purchase_list_url %}
+{% endif %}
+{% url 'erp:cashsession_list' as cashsession_list_url %}
+{% if not cashsession_list_url %}
+    {% url 'cashsession_list' as cashsession_list_url %}
+{% endif %}
+{% url 'erp:cashmovement_list' as cashmovement_list_url %}
+{% if not cashmovement_list_url %}
+    {% url 'cashmovement_list' as cashmovement_list_url %}
+{% endif %}
+{% url 'erp:inventorymovement_list' as inventorymovement_list_url %}
+{% if not inventorymovement_list_url %}
+    {% url 'inventorymovement_list' as inventorymovement_list_url %}
+{% endif %}
 <aside class="main-sidebar sidebar-light-primary elevation-4">
-    <a href="{% url 'erp:dashboard' %}" class="brand-link">
-        <img src="{% static 'img/logo.png' %}"
-             alt="AdminLTE Logo"
-             class="brand-image img-circle elevation-3"
-             style="opacity: .8">
-        <span class="brand-text font-weight-light">Tienda</span>
-    </a>
+    {% with current_organization=request.user.get_current_organization %}
+        <a href="{% url 'erp:dashboard' %}" class="brand-link">
+            <img src="{% if current_organization %}{{ current_organization.get_image }}{% else %}{% static 'img/logo.png' %}{% endif %}"
+                 alt="Logo"
+                 class="brand-image img-circle elevation-3"
+                 style="opacity: .95">
+            <span class="brand-text font-weight-light">
+                {% if current_organization %}{{ current_organization.name }}{% else %}Sin tienda activa{% endif %}
+            </span>
+        </a>
+    {% endwith %}
     <div class="sidebar">
-        <div class="user-panel mt-3 pb-3 mb-3 d-flex">
-            <div class="image">
-                <img src="{{ request.user.get_image }}" class="img-circle" alt="User Image">
+        {% if request.user.is_authenticated %}
+            <div class="user-panel mt-3 pb-3 mb-3 d-flex">
+                <div class="image">
+                    <img src="{{ request.user.get_image }}" class="img-circle" alt="User Image">
+                </div>
+                <div class="info">
+                    <a href="#" class="d-block">{{ request.user.username }}</a>
+                    <small class="d-block text-muted">{{ request.user.get_primary_role|default:'Sin rol' }}</small>
+                    {% with current_organization=request.user.get_current_organization %}
+                        {% if current_organization %}
+                            <small class="d-block text-muted">{{ current_organization.name }}</small>
+                        {% endif %}
+                    {% endwith %}
+                </div>
             </div>
-            <div class="info">
-                <a href="#" class="d-block">{{ request.user.username }}</a>
-            </div>
-        </div>
+        {% endif %}
         <nav class="mt-2">
             <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-                <li class="nav-header">Mantenimientos</li>
+                <li class="nav-header">Principal</li>
                 <li class="nav-item">
-                    <a href="{% url 'erp:category_list' %}" class="nav-link">
-                        <i class="nav-icon fas fa-truck-loading"></i>
-                        <p>
-                            Categorías
-                        </p>
+                    <a href="{% url 'erp:dashboard' %}" class="nav-link">
+                        <i class="nav-icon fas fa-home"></i>
+                        <p>Dashboard</p>
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a href="{% url 'erp:product_list' %}" class="nav-link">
-                        <i class="nav-icon fas fa-boxes"></i>
-                        <p>
-                            Productos
-                        </p>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'erp:client_list' %}" class="nav-link">
-                        <i class="nav-icon fas fa-users"></i>
-                        <p>
-                            Clientes
-                        </p>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'erp:sale_list' %}" class="nav-link">
-                        <i class="nav-icon fas fa-shopping-cart"></i>
-                        <p>
-                            Ventas
-                        </p>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'sale_report' %}" class="nav-link">
-                        <i class="nav-icon fas fa-chart-bar"></i>
-                        <p>
-                            Reporte de Ventas
-                        </p>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'user:user_list' %}" class="nav-link">
-                        <i class="nav-icon fas fa-user-friends"></i>
-                        <p>
-                            Usuarios
-                        </p>
-                    </a>
-                </li>
+                <li class="nav-header">Ventas</li>
+                {% if perms.erp.view_sale %}
+                    <li class="nav-item">
+                        <a href="{% url 'erp:sale_list' %}" class="nav-link">
+                            <i class="nav-icon fas fa-shopping-cart"></i>
+                            <p>Ventas</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{% url 'sale_report' %}" class="nav-link">
+                            <i class="nav-icon fas fa-chart-bar"></i>
+                            <p>Reporte de ventas</p>
+                        </a>
+                    </li>
+                {% endif %}
+                {% if perms.erp.view_client %}
+                    <li class="nav-item">
+                        <a href="{% url 'erp:client_list' %}" class="nav-link">
+                            <i class="nav-icon fas fa-users"></i>
+                            <p>Clientes</p>
+                        </a>
+                    </li>
+                {% endif %}
+                <li class="nav-header">Compras</li>
+                {% if perms.erp.view_purchase %}
+                    <li class="nav-item">
+                        <a href="{{ purchase_list_url|default:'/erp/purchase/list/' }}" class="nav-link">
+                            <i class="nav-icon fas fa-file-invoice-dollar"></i>
+                            <p>Compras</p>
+                        </a>
+                    </li>
+                {% endif %}
+                {% if perms.erp.view_supplier %}
+                    <li class="nav-item">
+                        <a href="{{ supplier_list_url|default:'/erp/supplier/list/' }}" class="nav-link">
+                            <i class="nav-icon fas fa-truck"></i>
+                            <p>Proveedores</p>
+                        </a>
+                    </li>
+                {% endif %}
+                <li class="nav-header">Inventario</li>
+                {% if perms.erp.view_product %}
+                    <li class="nav-item">
+                        <a href="{% url 'erp:product_list' %}" class="nav-link">
+                            <i class="nav-icon fas fa-boxes"></i>
+                            <p>Productos</p>
+                        </a>
+                    </li>
+                {% endif %}
+                {% if perms.erp.view_category %}
+                    <li class="nav-item">
+                        <a href="{% url 'erp:category_list' %}" class="nav-link">
+                            <i class="nav-icon fas fa-tags"></i>
+                            <p>Categorias</p>
+                        </a>
+                    </li>
+                {% endif %}
+                {% if perms.erp.view_inventorymovement %}
+                    <li class="nav-item">
+                        <a href="{{ inventorymovement_list_url|default:'/erp/inventory-movement/list/' }}" class="nav-link">
+                            <i class="nav-icon fas fa-warehouse"></i>
+                            <p>Movimientos de inventario</p>
+                        </a>
+                    </li>
+                {% endif %}
+                <li class="nav-header">Finanzas y fiscal</li>
+                {% if perms.erp.view_cashsession %}
+                    <li class="nav-item">
+                        <a href="{{ cashsession_list_url|default:'/erp/cash-session/list/' }}" class="nav-link">
+                            <i class="nav-icon fas fa-cash-register"></i>
+                            <p>Cajas</p>
+                        </a>
+                    </li>
+                {% endif %}
+                {% if perms.erp.view_cashmovement %}
+                    <li class="nav-item">
+                        <a href="{{ cashmovement_list_url|default:'/erp/cash-movement/list/' }}" class="nav-link">
+                            <i class="nav-icon fas fa-money-bill-wave"></i>
+                            <p>Movimientos de caja</p>
+                        </a>
+                    </li>
+                {% endif %}
+                {% if perms.erp.view_taxrate %}
+                    <li class="nav-item">
+                        <a href="{{ taxrate_list_url|default:'/erp/tax-rate/list/' }}" class="nav-link">
+                            <i class="nav-icon fas fa-percent"></i>
+                            <p>Tasas de impuesto</p>
+                        </a>
+                    </li>
+                {% endif %}
+                {% if perms.erp.view_fiscaldata or perms.erp.add_fiscaldata or perms.erp.change_fiscaldata %}
+                    <li class="nav-item">
+                        <a href="{{ fiscaldata_manage_url|default:'/erp/fiscal-data/' }}" class="nav-link">
+                            <i class="nav-icon fas fa-file-signature"></i>
+                            <p>Datos fiscales</p>
+                        </a>
+                    </li>
+                {% endif %}
+                <li class="nav-header">Administracion</li>
+                {% if perms.user.view_organization and organization_list_url %}
+                    <li class="nav-item">
+                        <a href="{{ organization_list_url }}" class="nav-link">
+                            <i class="nav-icon fas fa-store"></i>
+                            <p>Tiendas</p>
+                        </a>
+                    </li>
+                {% endif %}
+                {% if perms.user.view_user %}
+                    <li class="nav-item">
+                        <a href="{% url 'user:user_list' %}" class="nav-link">
+                            <i class="nav-icon fas fa-user-friends"></i>
+                            <p>Usuarios</p>
+                        </a>
+                    </li>
+                {% endif %}
             </ul>
         </nav>
     </div>

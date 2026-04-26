@@ -1,1 +1,54 @@
 {% extends 'form.html' %}
+{% load static %}
+
+{% block head_form %}
+<script src="{% static 'js/camera-capture.js' %}"></script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(function () {
+        function validateBarcode() {
+            var barcode = $('#id_barcode').val().trim();
+            if (!barcode) {
+                return;
+            }
+            var parameters = new FormData();
+            parameters.append('action', 'validate_barcode');
+            parameters.append('barcode', barcode);
+            {% if object %}
+            parameters.append('id', '{{ object.id }}');
+            {% endif %}
+
+            $.ajax({
+                url: window.location.pathname,
+                type: 'POST',
+                data: parameters,
+                processData: false,
+                contentType: false,
+                dataType: 'json'
+            }).done(function (data) {
+                if (data.valid) {
+                    Swal.fire({
+                        title: 'Codigo valido',
+                        text: data.message,
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Atencion',
+                        text: data.message,
+                        icon: 'warning'
+                    });
+                }
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                message_error(textStatus + ': ' + errorThrown);
+            });
+        }
+
+        $('#id_barcode').on('change', validateBarcode);
+    });
+</script>
+{% endblock %}

@@ -1,63 +1,329 @@
-{% extends "list.html" %} 
+{% extends "list.html" %}
 {% load static %}
-{% block head_list %}
-<script src="{% static 'lib/moment-2.25.3/moment.js' %}"></script>
-<script src="{% static 'lib/daterangepicker-3.1/spanish.js' %}"></script>
-<script src="{% static 'lib/daterangepicker-3.1/daterangepicker.js' %}"></script>
-<link rel="stylesheet" href="{% static 'lib/daterangepicker-3.1/daterangepicker.css' %}"/>
-<script src="{% static 'sale/js/report.js' %}"></script>
 
-<link rel="stylesheet" href="{% static 'lib/datatables-1.10.20/plugins/buttons-1.6.1/css/buttons.bootstrap.min.css' %}"/>
+{% block head_list %}
+    <script src="{% static 'lib/moment-2.25.3/moment.js' %}"></script>
+    <script src="{% static 'lib/daterangepicker-3.1/spanish.js' %}"></script>
+    <script src="{% static 'lib/daterangepicker-3.1/daterangepicker.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'lib/daterangepicker-3.1/daterangepicker.css' %}"/>
+    <script>
+        window.reportConfig = {
+            defaultStartDate: "{{ report_default_start_date }}",
+            defaultEndDate: "{{ report_default_end_date }}",
+            defaultPeriod: "{{ report_default_period }}"
+        };
+    </script>
+    <style>
+        :root {
+            --report-ink: #0f172a;
+            --report-slate: #64748b;
+            --report-card: #ffffff;
+            --report-surface: #f8fafc;
+            --report-border: #e2e8f0;
+            --report-blue-dark: #102a43;
+            --report-blue: #1f6f8b;
+            --report-green: #2bb673;
+            --report-cyan: #38bdf8;
+            --report-teal: #0f766e;
+            --report-emerald: #34d399;
+            --report-amber: #f59e0b;
+            --report-purple: #7c3aed;
+            --report-rose: #be123c;
+        }
+
+        .report-hero {
+            background:
+                radial-gradient(circle at top right, rgba(255, 255, 255, 0.16), transparent 32%),
+                linear-gradient(135deg, #102a43 0%, #1f6f8b 52%, #2bb673 100%);
+            border-radius: 18px;
+            color: #fff;
+            padding: 24px;
+            box-shadow: 0 18px 45px rgba(16, 42, 67, 0.24);
+        }
+
+        .report-eyebrow {
+            color: rgba(255, 255, 255, 0.78);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .report-hero h2 {
+            font-size: 30px;
+            font-weight: 800;
+            margin: 4px 0;
+        }
+
+        .report-period-group .btn {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border: 1px solid rgba(226, 232, 240, 0.65) !important;
+            color: #e2e8f0 !important;
+            font-weight: 700;
+            text-shadow: none;
+        }
+
+        .report-period-group .btn:hover {
+            background: rgba(255, 255, 255, 0.22) !important;
+            border-color: #f8fafc !important;
+            color: #ffffff !important;
+        }
+
+        .report-period-group .btn.active {
+            background: #f8fafc !important;
+            border-color: #f8fafc !important;
+            color: #102a43 !important;
+            box-shadow: 0 12px 24px rgba(16, 42, 67, 0.26);
+            text-shadow: none;
+        }
+
+        .report-period-group .btn.active:hover {
+            background: #ffffff !important;
+            border-color: #ffffff !important;
+            color: #102a43 !important;
+        }
+
+        .report-range-badge {
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            border-radius: 999px;
+            display: inline-block;
+            font-weight: 700;
+            margin-top: 12px;
+            padding: 7px 14px;
+        }
+
+        .report-filter-card,
+        .report-table-card,
+        .report-kpi-card {
+            border: 0;
+            border-radius: 16px;
+            box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+        }
+
+        .report-filter-card,
+        .report-table-card {
+            background: var(--report-card);
+        }
+
+        .report-kpi-card {
+            min-height: 116px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .report-kpi-card .card-body {
+            position: relative;
+            z-index: 2;
+        }
+
+        .report-kpi-card h3 {
+            font-size: 24px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .report-kpi-card p {
+            color: var(--report-slate);
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .report-kpi-icon {
+            bottom: -8px;
+            color: rgba(15, 23, 42, 0.08);
+            font-size: 56px;
+            position: absolute;
+            right: 14px;
+        }
+
+        .report-accent-total { border-top: 4px solid var(--report-blue); }
+        .report-accent-tax { border-top: 4px solid var(--report-amber); }
+        .report-accent-profit { border-top: 4px solid var(--report-green); }
+        .report-accent-count { border-top: 4px solid var(--report-purple); }
+        .report-accent-ticket { border-top: 4px solid var(--report-rose); }
+        .report-accent-subtotal { border-top: 4px solid var(--report-cyan); }
+
+        .report-table-card .card-header {
+            border-bottom: 1px solid var(--report-border);
+            border-radius: 16px 16px 0 0;
+        }
+
+        #data thead th {
+            background: var(--report-blue-dark);
+            border-color: var(--report-blue-dark);
+            color: #fff;
+            white-space: nowrap;
+        }
+
+        #data tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .dt-buttons .btn {
+            border: 0;
+            border-radius: 999px;
+            box-shadow: 0 8px 16px rgba(23, 33, 43, 0.1);
+            margin-right: 6px;
+        }
+
+        #report-js-warning {
+            border-radius: 14px;
+        }
+    </style>
+
+    <link rel="stylesheet" href="{% static 'lib/datatables-1.10.20/plugins/buttons-1.6.1/css/buttons.bootstrap.min.css' %}"/>
     <script src="{% static 'lib/datatables-1.10.20/plugins/buttons-1.6.1/js/dataTables.buttons.min.js' %}" type="text/javascript"></script>
     <script src="{% static 'lib/datatables-1.10.20/plugins/jszip-2.5.0/jszip.min.js' %}" type="text/javascript"></script>
     <script src="{% static 'lib/datatables-1.10.20/plugins/pdfmake-0.1.36/pdfmake.min.js' %}" type="text/javascript"></script>
     <script src="{% static 'lib/datatables-1.10.20/plugins/pdfmake-0.1.36/vfs_fonts.js' %}" type="text/javascript"></script>
     <script src="{% static 'lib/datatables-1.10.20/plugins/buttons-1.6.1/js/buttons.html5.min.js' %}" type="text/javascript"></script>
-
+    <script src="{% static 'sale/js/report.js' %}?v=20260423-2"></script>
 {% endblock %}
+
 {% block content %}
-<div class="card card-dark">
-    <div class="card-header">
-        <h3 class="card-title">
-            <i class="fas fa-chart-bar"></i>
-            {{ title }}
-        </h3>
-    </div>
-    <div class="card-body">
-        <div class="row">
-            <div class="col-lg-4">
-                <div class="form-group">
-                    <label>Rango de fechas:</label>
-                    {{ form.date_range }}
+    <div class="report-hero mb-3">
+        <div class="row align-items-center">
+            <div class="col-lg-7">
+                <div class="report-eyebrow">Panel de ventas</div>
+                <h2>{{ title }}</h2>
+                <p class="mb-0">
+                    Tienda activa: <strong>{{ current_organization.name }}</strong>
+                </p>
+            </div>
+            <div class="col-lg-5 text-lg-right mt-3 mt-lg-0">
+                <div class="btn-group report-period-group" role="group" aria-label="Filtros rapidos">
+                    <button type="button" class="btn btnReportPeriod" data-period="day">
+                        <i class="fas fa-sun"></i> Hoy
+                    </button>
+                    <button type="button" class="btn btnReportPeriod" data-period="week">
+                        <i class="fas fa-calendar-week"></i> Semana
+                    </button>
+                    <button type="button" class="btn btnReportPeriod active" data-period="month">
+                        <i class="fas fa-calendar-alt"></i> Mes
+                    </button>
+                </div>
+                <div class="report-range-badge" id="active-range-label">
+                    Cargando rango...
                 </div>
             </div>
         </div>
-        <hr>
-        <table class="table table-bordered" id="data">
-            <thead>
-                <tr>
-                    <th scope="col">Nro</th>
-                    <th scope="col">Nombre</th>
-                    <th scope="col">Apellido</th>
-                    <th scope="col">Fecha de registro</th>
-                    <th scope="col">Subtotal</th>
-                    <th scope="col">Iva</th>
-                    <th scope="col">Total</th>
-                </tr>
-            </thead>
-            <tbody>
-            </tbody>
-        </table>
     </div>
-    <div class="card-footer">
-            <a href="{{ list_url }}" class="btn btn-success btn-flat">
-                <i class="fas fa-sync"></i> Actualizar
-            </a>
-    </div>
-</div>
 
+    <div class="card report-filter-card mb-3">
+        <div class="card-body">
+            <div class="row align-items-end">
+                <div class="col-lg-5">
+                    <label>Rango manual:</label>
+                    {{ form.date_range }}
+                </div>
+                <div class="col-lg-5 mt-3 mt-lg-0">
+                    <div class="text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        El reporte se carga automaticamente. Usa los botones para ver por dia, semana o mes.
+                    </div>
+                </div>
+                <div class="col-lg-2 text-lg-right mt-3 mt-lg-0">
+                    <button type="button" class="btn btn-dark btn-flat btn-block" id="btnRefreshReport">
+                        <i class="fas fa-sync"></i> Actualizar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-6 col-xl-2 mb-3">
+            <div class="card report-kpi-card report-accent-total">
+                <div class="card-body">
+                    <h3 id="summary-total">L 0.00</h3>
+                    <p>Total vendido</p>
+                    <i class="fas fa-cash-register report-kpi-icon"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-2 mb-3">
+            <div class="card report-kpi-card report-accent-subtotal">
+                <div class="card-body">
+                    <h3 id="summary-subtotal">L 0.00</h3>
+                    <p>Subtotal</p>
+                    <i class="fas fa-layer-group report-kpi-icon"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-2 mb-3">
+            <div class="card report-kpi-card report-accent-tax">
+                <div class="card-body">
+                    <h3 id="summary-tax">L 0.00</h3>
+                    <p>ISV</p>
+                    <i class="fas fa-percent report-kpi-icon"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-2 mb-3">
+            <div class="card report-kpi-card report-accent-profit">
+                <div class="card-body">
+                    <h3 id="summary-profit">L 0.00</h3>
+                    <p>Utilidad</p>
+                    <i class="fas fa-chart-line report-kpi-icon"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-2 mb-3">
+            <div class="card report-kpi-card report-accent-count">
+                <div class="card-body">
+                    <h3 id="summary-sales-count">0</h3>
+                    <p>Ventas</p>
+                    <i class="fas fa-shopping-cart report-kpi-icon"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-2 mb-3">
+            <div class="card report-kpi-card report-accent-ticket">
+                <div class="card-body">
+                    <h3 id="summary-average-ticket">L 0.00</h3>
+                    <p>Ticket promedio</p>
+                    <i class="fas fa-receipt report-kpi-icon"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card report-table-card">
+        <div class="card-header bg-white">
+            <h3 class="card-title mb-0">
+                <i class="fas fa-table"></i> Detalle de ventas
+            </h3>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning d-none" id="report-js-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                No se pudieron cargar los controles avanzados, pero intentaremos mostrar la informacion basica.
+            </div>
+            <div class="table-responsive">
+            <table class="table table-bordered" id="data">
+                <thead>
+                    <tr>
+                        <th scope="col">Nro</th>
+                        <th scope="col">Tienda</th>
+                        <th scope="col">Cliente</th>
+                        <th scope="col">Fecha</th>
+                        <th scope="col">Items</th>
+                        <th scope="col">Subtotal</th>
+                        <th scope="col">IVA</th>
+                        <th scope="col">Total</th>
+                        <th scope="col">Ganancia</th>
+                        <th scope="col">Estado</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            </div>
+        </div>
+        <div class="card-footer">
+            <span class="text-muted">
+                <i class="fas fa-magic"></i> Los datos se actualizan al cambiar el periodo.
+            </span>
+        </div>
+    </div>
 {% endblock content %}
-
-{% block javascript %}
-
-{% endblock %}

@@ -57,9 +57,17 @@
     </tr>
     </thead>
     <tbody>
-    {% for d in sale.detsale_set.all %}
+    {% for d in sale.details.all %}
         <tr {% if forloop.first %}style="padding-top: 3px;" {% endif %}>
-            <td>{{ d.prod.cat.name }}</td>
+            <td>
+                {% if d.prod.category %}
+                    {{ d.prod.category.name }}
+                {% elif d.prod.cat %}
+                    {{ d.prod.cat.name }}
+                {% else %}
+                    -
+                {% endif %}
+            </td>
             <td>{{ d.prod.name }}</td>
             <td class="text-center">{{ d.cant }}</td>
             <td class="text-center">L. {{ d.price }}</td>
@@ -72,7 +80,7 @@
     </tr>
     <tr style="padding-top: 0px;">
         <td colspan="4"><b>IVA 15%</b></td>
-        <td style="text-align: right">L. {{ sale.iva }}</td>
+        <td style="text-align: right">L. {{ sale.tax_total|default:sale.iva }}</td>
     </tr>
     <tr style="padding-top: 0px;">
         <td colspan="4"><b>TOTAL A PAGAR</b></td>

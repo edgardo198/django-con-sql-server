@@ -1,5 +1,6 @@
 var tblSale;
 function format(d) {
+    var details = d.details || d.det || [];
     var html = '<table class="table">';
     html += '<thead class="thead-dark">';
     html += '<tr><th scope="col">Producto</th>';
@@ -9,7 +10,7 @@ function format(d) {
     html += '<th scope="col">Subtotal</th></tr>';
     html += '</thead>';
     html += '<tbody>';
-    $.each(d.det, function (key, value) {
+    $.each(details, function (key, value) {
         html+='<tr>'
         html+='<td>'+value.prod.name+'</td>'
         html+='<td>'+value.prod.cat.name+  '</td>'
@@ -23,6 +24,8 @@ function format(d) {
 }
 
 $(function () {
+    var config = window.saleListConfig || {};
+
     tblSale = $('#data').DataTable({
         //responsive: true,
         scrollX: true,
@@ -48,7 +51,12 @@ $(function () {
             {"data": "cli.surnames"},
             {"data": "date_joined"},
             {"data": "subtotal"},
-            {"data": "iva"},
+            {
+                data: null,
+                render: function (data, type, row) {
+                    return (row.tax_total !== undefined && row.tax_total !== null) ? row.tax_total : (row.iva || 0);
+                }
+            },
             {"data": "total"},
             {"data": "id"},
         ],
@@ -66,10 +74,16 @@ $(function () {
                 class: 'text-center',
                 orderable: false,
                 render: function (data, type, row) {
-                    var buttons = '<a href="/erp/sale/delete/' + row.id + '/" class="btn btn-danger btn-xs btn-flat"><i class="fas fa-trash-alt"></i></a> ';
-                    buttons += '<a href="/erp/sale/update/' + row.id + '/" class="btn btn-warning btn-xs btn-flat"><i class="fas fa-edit"></i></a> ';
+                    var buttons = '';
+                    if (config.canDelete) {
+                        buttons += '<a href="/erp/sale/delete/' + row.id + '/" class="btn btn-danger btn-xs btn-flat"><i class="fas fa-trash-alt"></i></a> ';
+                    }
+                    if (config.canChange) {
+                        buttons += '<a href="/erp/sale/update/' + row.id + '/" class="btn btn-warning btn-xs btn-flat"><i class="fas fa-edit"></i></a> ';
+                    }
                     buttons += '<a rel="details" class="btn btn-success btn-xs btn-flat"><i class="fas fa-search"></i></a> ';
-                    buttons += '<a href="/erp/sale/invoice/pdf/'+row.id+'/" target="_blank" class="btn btn-info btn-xs btn-flat"><i class="fas fa-file-pdf"></i></a> ';
+                    buttons += '<a href="/erp/sale/invoice/pdf/'+row.id+'/" target="_blank" class="btn btn-info btn-xs btn-flat" title="Factura PDF"><i class="fas fa-file-pdf"></i></a> ';
+                    buttons += '<a href="/erp/sale/ticket/print/'+row.id+'/" target="_blank" class="btn btn-secondary btn-xs btn-flat" title="Imprimir ticket"><i class="fas fa-print"></i></a> ';
                     return buttons;
                 }
             },
@@ -104,7 +118,12 @@ $(function () {
                 },
                 columns: [
                     {"data": "prod.name"},
-                    {"data": "prod.cat.name"},
+                    {
+                        data: null,
+                        render: function (data, type, row) {
+                            return (row.prod && row.prod.category && row.prod.category.name) || (row.prod && row.prod.cat && row.prod.cat.name) || '';
+                        }
+                    },
                     {"data": "price"},
                     {"data": "cant"},
                     {"data": "subtotal"},

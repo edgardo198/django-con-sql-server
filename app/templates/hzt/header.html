@@ -1,58 +1,198 @@
 {% load static %}
-<!-- Navbar -->
-<nav class="main-header navbar navbar-expand navbar-dark navbar-primary">
-    <div class="container">
-        <a href="{% url 'erp:dashboard' %}" class="navbar-brand">
-            <img src="{% static 'img/logo.png' %}" alt="AdminLTE Logo"
-                 class="brand-image"
-                 style="opacity: .8">
-            <span class="brand-text font-weight-light">Hades</span>
-        </a>
+{% url 'user:organization_list' as organization_list_url %}
+{% if not organization_list_url %}
+    {% url 'organization_list' as organization_list_url %}
+{% endif %}
+{% url 'erp:supplier_list' as supplier_list_url %}
+{% if not supplier_list_url %}
+    {% url 'supplier_list' as supplier_list_url %}
+{% endif %}
+{% url 'erp:taxrate_list' as taxrate_list_url %}
+{% if not taxrate_list_url %}
+    {% url 'taxrate_list' as taxrate_list_url %}
+{% endif %}
+{% url 'erp:fiscaldata_manage' as fiscaldata_manage_url %}
+{% if not fiscaldata_manage_url %}
+    {% url 'fiscaldata_manage' as fiscaldata_manage_url %}
+{% endif %}
+{% url 'erp:purchase_list' as purchase_list_url %}
+{% if not purchase_list_url %}
+    {% url 'purchase_list' as purchase_list_url %}
+{% endif %}
+{% url 'erp:cashsession_list' as cashsession_list_url %}
+{% if not cashsession_list_url %}
+    {% url 'cashsession_list' as cashsession_list_url %}
+{% endif %}
+{% url 'erp:cashmovement_list' as cashmovement_list_url %}
+{% if not cashmovement_list_url %}
+    {% url 'cashmovement_list' as cashmovement_list_url %}
+{% endif %}
+{% url 'erp:inventorymovement_list' as inventorymovement_list_url %}
+{% if not inventorymovement_list_url %}
+    {% url 'inventorymovement_list' as inventorymovement_list_url %}
+{% endif %}
+<nav class="main-header navbar navbar-expand navbar-dark app-top-navbar">
+    <div class="container-fluid">
+        {% with current_organization=request.user.get_current_organization %}
+            <a href="{% url 'erp:dashboard' %}" class="navbar-brand app-navbar-brand" title="{% if current_organization %}{{ current_organization.name }}{% else %}Sin tienda activa{% endif %}">
+                <img src="{% if current_organization %}{{ current_organization.get_image }}{% else %}{% static 'img/logo.png' %}{% endif %}"
+                     alt="Logo"
+                     class="brand-image"
+                     style="opacity: .95">
+                <span class="brand-text font-weight-light text-truncate">
+                    {% if current_organization %}{{ current_organization.name }}{% else %}Sin tienda activa{% endif %}
+                </span>
+            </a>
+        {% endwith %}
         <button class="navbar-toggler order-1" type="button" data-toggle="collapse" data-target="#navbarCollapse"
                 aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
-        <div class="collapse navbar-collapse order-3" id="navbarCollapse">
-            <ul class="navbar-nav">
+        <div class="collapse navbar-collapse order-3 app-navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav app-main-menu">
                 <li class="nav-item">
-                    <a href="{% url 'erp:dashboard' %}" class="nav-link"><i class="fas fa-home"></i> Home</a>
+                    <a href="{% url 'erp:dashboard' %}" class="nav-link app-menu-link"><i class="fas fa-home"></i> Inicio</a>
                 </li>
+                {% if perms.erp.view_sale or perms.erp.view_client %}
+                    <li class="nav-item dropdown">
+                        <a id="salesMenu" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                           class="nav-link dropdown-toggle app-menu-link"><i class="fas fa-shopping-cart"></i> Ventas</a>
+                        <ul aria-labelledby="salesMenu" class="dropdown-menu border-0 shadow">
+                            {% if perms.erp.view_sale %}
+                                <li><a href="{% url 'erp:sale_list' %}" class="dropdown-item"><i class="fas fa-shopping-cart"></i> Ventas</a></li>
+                                <li><a href="{% url 'sale_report' %}" class="dropdown-item"><i class="fas fa-chart-bar"></i> Reporte de ventas</a></li>
+                            {% endif %}
+                            {% if perms.erp.view_client %}
+                                <li><a href="{% url 'erp:client_list' %}" class="dropdown-item"><i class="fas fa-users"></i> Clientes</a></li>
+                            {% endif %}
+                        </ul>
+                    </li>
+                {% endif %}
+                {% if perms.erp.view_purchase or perms.erp.view_supplier %}
+                    <li class="nav-item dropdown">
+                        <a id="purchaseMenu" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                           class="nav-link dropdown-toggle app-menu-link"><i class="fas fa-file-invoice-dollar"></i> Compras</a>
+                        <ul aria-labelledby="purchaseMenu" class="dropdown-menu border-0 shadow">
+                            {% if perms.erp.view_purchase %}
+                                <li><a href="{{ purchase_list_url|default:'/erp/purchase/list/' }}" class="dropdown-item"><i class="fas fa-file-invoice-dollar"></i> Compras</a></li>
+                            {% endif %}
+                            {% if perms.erp.view_supplier %}
+                                <li><a href="{{ supplier_list_url|default:'/erp/supplier/list/' }}" class="dropdown-item"><i class="fas fa-truck"></i> Proveedores</a></li>
+                            {% endif %}
+                        </ul>
+                    </li>
+                {% endif %}
+                {% if perms.erp.view_product or perms.erp.view_category or perms.erp.view_inventorymovement %}
+                    <li class="nav-item dropdown">
+                        <a id="inventoryMenu" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                           class="nav-link dropdown-toggle app-menu-link"><i class="fas fa-boxes"></i> Inventario</a>
+                        <ul aria-labelledby="inventoryMenu" class="dropdown-menu border-0 shadow">
+                            {% if perms.erp.view_product %}
+                                <li><a href="{% url 'erp:product_list' %}" class="dropdown-item"><i class="fas fa-boxes"></i> Productos</a></li>
+                            {% endif %}
+                            {% if perms.erp.view_category %}
+                                <li><a href="{% url 'erp:category_list' %}" class="dropdown-item"><i class="fas fa-tags"></i> Categorias</a></li>
+                            {% endif %}
+                            {% if perms.erp.view_inventorymovement %}
+                                <li><a href="{{ inventorymovement_list_url|default:'/erp/inventory-movement/list/' }}" class="dropdown-item"><i class="fas fa-warehouse"></i> Movimientos de inventario</a></li>
+                            {% endif %}
+                        </ul>
+                    </li>
+                {% endif %}
+                {% if perms.erp.view_cashsession or perms.erp.view_cashmovement or perms.erp.view_taxrate or perms.erp.view_fiscaldata or perms.erp.add_fiscaldata or perms.erp.change_fiscaldata %}
+                    <li class="nav-item dropdown">
+                        <a id="financeMenu" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                           class="nav-link dropdown-toggle app-menu-link"><i class="fas fa-cash-register"></i> Finanzas</a>
+                        <ul aria-labelledby="financeMenu" class="dropdown-menu border-0 shadow">
+                            {% if perms.erp.view_cashsession %}
+                                <li><a href="{{ cashsession_list_url|default:'/erp/cash-session/list/' }}" class="dropdown-item"><i class="fas fa-cash-register"></i> Cajas</a></li>
+                            {% endif %}
+                            {% if perms.erp.view_cashmovement %}
+                                <li><a href="{{ cashmovement_list_url|default:'/erp/cash-movement/list/' }}" class="dropdown-item"><i class="fas fa-money-bill-wave"></i> Movimientos de caja</a></li>
+                            {% endif %}
+                            {% if perms.erp.view_taxrate %}
+                                <li><a href="{{ taxrate_list_url|default:'/erp/tax-rate/list/' }}" class="dropdown-item"><i class="fas fa-percent"></i> Tasas de impuesto</a></li>
+                            {% endif %}
+                            {% if perms.erp.view_fiscaldata or perms.erp.add_fiscaldata or perms.erp.change_fiscaldata %}
+                                <li><a href="{{ fiscaldata_manage_url|default:'/erp/fiscal-data/' }}" class="dropdown-item"><i class="fas fa-file-signature"></i> Datos fiscales</a></li>
+                            {% endif %}
+                        </ul>
+                    </li>
+                {% endif %}
                 <li class="nav-item dropdown">
-                    <a id="dropdownSubMenu1" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-                       class="nav-link dropdown-toggle"><i class="fas fa-folder-open"></i> Mantenimientos</a>
-                    <ul aria-labelledby="dropdownSubMenu1" class="dropdown-menu border-0 shadow">
-                        <li><a href="{% url 'erp:category_list' %}" class="dropdown-item"><i class="fas fa-truck-loading"></i> Categorías</a></li>
-                        <li><a href="{% url 'erp:product_list' %}" class="dropdown-item"><i class="fas fa-boxes"></i> Productos</a></li>
-                        <li><a href="{% url 'erp:client_list' %}" class="dropdown-item"><i class="fas fa-users"></i> Clientes</a></li>
-                        <li><a href="#" class="dropdown-item"><i class="fas fa-shopping-cart"></i> Ventas</a></li>
-                        <li><a href="{% url 'sale_report' %}" class="dropdown-item"><i class="fas fa-chart-bar"></i> Reporte de Ventas</a></li>
-                        <li><a href="{% url 'user:user_list' %}" class="dropdown-item"><i class="fas fa-user-friends"></i> Usuarios</a></li>
+                    <a id="adminMenu" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                       class="nav-link dropdown-toggle app-menu-link"><i class="fas fa-tools"></i> Administracion</a>
+                    <ul aria-labelledby="adminMenu" class="dropdown-menu border-0 shadow">
+                        {% if perms.user.view_organization and organization_list_url %}
+                            <li><a href="{{ organization_list_url }}" class="dropdown-item"><i class="fas fa-store"></i> Tiendas</a></li>
+                        {% endif %}
+                        {% if perms.user.view_user %}
+                            <li><a href="{% url 'user:user_list' %}" class="dropdown-item"><i class="fas fa-user-friends"></i> Usuarios</a></li>
+                        {% endif %}
                     </ul>
                 </li>
             </ul>
         </div>
-        <ul class="order-1 order-md-3 navbar-nav navbar-no-expand ml-auto">
+        <ul class="order-1 order-md-3 navbar-nav navbar-no-expand ml-auto app-user-menu">
+            {% if request.user.is_authenticated %}
+                {% with current_organization=request.user.get_current_organization %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link app-store-link" data-toggle="dropdown" href="#" title="{% if current_organization %}{{ current_organization.name }}{% else %}Sin tienda activa{% endif %}">
+                            <i class="fas fa-store-alt"></i>
+                            <span class="d-none d-xl-inline">
+                                {% if current_organization %}{{ current_organization.name }}{% else %}Sin tienda activa{% endif %}
+                            </span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
+                            <span class="dropdown-header" style="font-size: 12px;">
+                                Rol actual: {{ request.user.get_primary_role|default:'Sin rol' }}
+                            </span>
+                            <div class="dropdown-divider"></div>
+                            {% for organization in request.user.get_accessible_organizations %}
+                                {% url 'user:organization_switch' organization.id as organization_switch_url %}
+                                {% if not organization_switch_url %}
+                                    {% url 'organization_switch' organization.id as organization_switch_url %}
+                                {% endif %}
+                                {% if organization_switch_url %}
+                                    <a href="{{ organization_switch_url }}"
+                                       class="dropdown-item {% if current_organization and current_organization.id == organization.id %}active{% endif %}">
+                                        <i class="fas fa-store mr-2"></i> {{ organization.name }}
+                                    </a>
+                                {% else %}
+                                    <span class="dropdown-item text-muted">{{ organization.name }}</span>
+                                {% endif %}
+                            {% empty %}
+                                <span class="dropdown-item text-muted">No tiene tiendas asignadas.</span>
+                            {% endfor %}
+                        </div>
+                    </li>
+                {% endwith %}
+            {% endif %}
             <li class="nav-item dropdown">
-                <a class="nav-link" data-toggle="dropdown" href="#">
-                    <i class="fas fa-users-cog"></i> {{ request.user.username }}
+                <a class="nav-link app-user-link" data-toggle="dropdown" href="#" title="{{ request.user.username }}">
+                    <i class="fas fa-users-cog"></i>
+                    <span class="d-none d-lg-inline">{{ request.user.username }}</span>
                 </a>
                 <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
                     <span class="dropdown-header" style="font-size: 12px;">
-                        Sú último acceso fue {{ request.user.last_login }}
+                        Ultimo acceso: {{ request.user.last_login }}
                     </span>
                     <div class="dropdown-divider"></div>
-                    <a href="#" class="dropdown-item">
-                        <i class="fas fa-edit mr-2"></i> Editar perfil
-                        <span class="float-right text-muted text-sm">3 mins</span>
-                    </a>
+                    <div class="dropdown-item">
+                        <i class="fas fa-user-tag mr-2"></i> {{ request.user.get_primary_role|default:'Sin rol' }}
+                    </div>
                     <div class="dropdown-divider"></div>
-                    <a href="#" class="dropdown-item">
-                        <i class="fas fa-lock mr-2"></i> Editar password
-                        <span class="float-right text-muted text-sm">12 hours</span>
-                    </a>
+                    <div class="px-3 py-2 text-muted small" style="white-space: normal;">
+                        Gestiona ventas, inventario y usuarios por tienda de forma centralizada.
+                    </div>
                     <div class="dropdown-divider"></div>
-                    <a href="#" class="dropdown-item dropdown-footer">
-                        <p>Este sistema te permitira realizar diferentes actividades</p>
+                    <a href="{% url 'user:menu_layout_toggle' %}" class="dropdown-item">
+                        <i class="fas fa-exchange-alt mr-2"></i>
+                        {% if request.session.menu_layout == 'hzt' %}
+                            Ver menu vertical
+                        {% else %}
+                            Ver menu horizontal
+                        {% endif %}
                     </a>
                 </div>
             </li>

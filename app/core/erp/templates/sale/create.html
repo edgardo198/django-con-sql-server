@@ -1,25 +1,51 @@
 {% extends 'list.html' %}
 {% load static %}
-{% block head_list %}
-    <link href="{% static 'lib/jquery-ui-1.12.1/jquery-ui.min.css' %}" rel="stylesheet"/>
-    <script src="{% static 'lib/jquery-ui-1.12.1/jquery-ui.min.js' %}"></script>
 
+{% block head_list %}
     <link href="{% static 'lib/select2-4.0.13/css/select2.min.css' %}" rel="stylesheet"/>
     <link href="{% static 'lib/select2-4.0.13/css/select2-bootstrap4.min.css' %}" rel="stylesheet"/>
     <script src="{% static 'lib/select2-4.0.13/js/select2.min.js' %}"></script>
     <script src="{% static 'lib/select2-4.0.13/js/i18n/es.js' %}"></script>
-    
-    <script src="{% static 'lib/moment-2.25.3/moment-with-locales.js' %}"></script>
-    <script src="{% static 'lib/tempusdominus-bootstrap-4/tempusdominus-bootstrap-4.min.js' %}"></script>
-    <link href="{% static 'lib/tempusdominus-bootstrap-4/tempusdominus-bootstrap-4.min.css' %}" rel="stylesheet"/>
+    <style>
+        .sale-product-thumb {
+            width: 44px;
+            height: 44px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            background: #fff;
+        }
 
-    <link href="{% static 'lib/bootstrap-touchspin-4.3.0/jquery.bootstrap-touchspin.css' %}" rel="stylesheet"/>
-    <script src="{% static 'lib/bootstrap-touchspin-4.3.0/jquery.bootstrap-touchspin.js' %}"></script>
+        .sale-product-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 48px;
+        }
+
+        .sale-product-option img {
+            flex: 0 0 auto;
+        }
+
+        .sale-product-option-name {
+            display: block;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .sale-product-option-meta {
+            display: block;
+            color: #6c757d;
+            font-size: 12px;
+            line-height: 1.2;
+        }
+    </style>
     <script src="{% static 'sale/js/form.js' %}"></script>
 {% endblock %}
 
 {% block content %}
-    <form method="post">
+    <form method="post" id="saleForm">
+        {% csrf_token %}
         <div class="card card-dark">
             <div class="card-header">
                 <h3 class="card-title">
@@ -33,69 +59,112 @@
             </div>
             <div class="card-body card-dark">
                 <div class="row">
-                    <div class="col-lg-9">
+                    <div class="col-lg-8">
                         <div class="card card-dark">
                             <div class="card-header">
                                 <h3 class="card-title"><i class="fas fa-boxes"></i> Detalle de productos</h3>
                             </div>
                             <div class="card-body">
+                                <input type="hidden" name="action" value="{{ action }}">
                                 <div class="form-group">
                                     <label>Buscador de productos:</label>
-                                    <div class="input-group">
-                                        <select class="form-control select2" style="width: 100%;" name="search">
-                                        </select>
-                                    </div>
+                                    <select class="form-control sale-product-search" style="width: 100%;"></select>
                                 </div>
                                 <hr>
-                                <button type="button" class="btn btn-danger btn-sm btnRemoveAll"><i class="fas fa-trash"></i>  Eliminar Todo</button>
+                                <button type="button" class="btn btn-danger btn-sm btnRemoveAll">
+                                    <i class="fas fa-trash"></i> Eliminar todo
+                                </button>
                                 <hr>
-                                <table class="table table-bordered" id="tblProducts">
-                                    <thead>
-                                    <tr>
-                                        <th>Eliminar</th>
-                                        <th>Producto</th>
-                                        <th>Categoría</th>
-                                        <th>PVP</th>
-                                        <th>Cantidad</th>
-                                        <th>Subtotal</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    </tbody>
-                                </table>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered" id="tblSaleProducts">
+                                        <thead>
+                                            <tr>
+                                                <th>Eliminar</th>
+                                                <th>Foto</th>
+                                                <th>Producto</th>
+                                                <th>Categoria</th>
+                                                <th>Precio</th>
+                                                <th>Cantidad</th>
+                                                <th>ISV</th>
+                                                <th>Total linea</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-lg-3">
+                    <div class="col-lg-4">
                         <div class="card card-dark">
                             <div class="card-header">
-                                <h3 class="card-title"><i class="fas fa-shopping-cart"></i> Datos de la factura</h3>
+                                <h3 class="card-title"><i class="fas fa-file-invoice-dollar"></i> Datos de la venta</h3>
                             </div>
                             <div class="card-body">
+                                {% if current_organization %}
+                                    <div class="alert alert-info">
+                                        <strong>Tienda activa:</strong> {{ current_organization.name }}
+                                    </div>
+                                {% endif %}
                                 <div class="form-group">
-                                    <input type="hidden" name="action"  value="{{ action }}">
+                                    <label>Cliente:</label>
+                                    <div class="d-flex">
+                                        <div class="flex-grow-1 mr-2">
+                                            {{ form.cli }}
+                                        </div>
+                                        <button type="button" class="btn btn-success btn-flat" data-toggle="modal" data-target="#modalClient">
+                                            <i class="fas fa-user-plus"></i> Nuevo cliente
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Caja:</label>
+                                    {{ form.cash_session }}
+                                </div>
+                                <div class="form-group">
+                                    <label>Documento:</label>
+                                    {{ form.document_type }}
+                                </div>
+                                <div class="form-group">
+                                    <label>Condicion:</label>
+                                    {{ form.payment_term }}
+                                </div>
+                                <div class="form-group">
                                     <label>Fecha de venta:</label>
                                     {{ form.date_joined }}
                                 </div>
                                 <div class="form-group">
-                                    <label>Cliente:</label>
-                                    {{ form.cli }}
+                                    <label>Fecha de vencimiento:</label>
+                                    {{ form.due_date }}
+                                </div>
+                                <div class="form-group">
+                                    <label>Descuento general:</label>
+                                    {{ form.discount }}
                                 </div>
                                 <div class="form-group">
                                     <label>Subtotal:</label>
                                     {{ form.subtotal }}
                                 </div>
                                 <div class="form-group">
-                                    <label>IVA:</label>
-                                    {{ form.iva }}
-                                </div>
-                                <div class="form-group">
-                                    <label>IVA Calculado:</label>
-                                    <input type="text" class="form-control" readpnly name="ivacalc" value="0.00">
+                                    <label>ISV:</label>
+                                    {{ form.tax_total }}
+                                    {# legacy hidden field `iva` remains in the form but is not shown explicitly #}
                                 </div>
                                 <div class="form-group">
                                     <label>Total a pagar:</label>
                                     {{ form.total }}
+                                </div>
+                                <div class="form-group">
+                                    <label>Monto pagado:</label>
+                                    {{ form.amount_paid }}
+                                </div>
+                                <div class="form-group">
+                                    <label>Saldo:</label>
+                                    {{ form.balance }}
+                                </div>
+                                <div class="form-group">
+                                    <label>Observacion:</label>
+                                    {{ form.observation }}
                                 </div>
                             </div>
                         </div>
@@ -106,17 +175,122 @@
                 <button type="submit" class="btn btn-primary btn-flat">
                     <i class="fas fa-save"></i> Guardar registro
                 </button>
+                <button type="button" class="btn btn-success btn-flat" id="btnSaveAndPrint">
+                    <i class="fas fa-print"></i> Guardar e imprimir ticket
+                </button>
                 <a href="{{ list_url }}" class="btn btn-danger btn-flat">
                     <i class="fas fa-times"></i> Cancelar
                 </a>
             </div>
         </div>
     </form>
+
+    <div class="modal fade" id="modalClient" tabindex="-1" role="dialog" aria-labelledby="modalClientLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <form id="clientModalForm" method="post">
+                {% csrf_token %}
+                <div class="modal-content">
+                    <div class="modal-header bg-success">
+                        <h5 class="modal-title" id="modalClientLabel">
+                            <i class="fas fa-user-plus"></i> Nuevo cliente
+                        </h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Nombres:</label>
+                                    <input type="text" name="names" class="form-control" placeholder="Ej. Carlos Alberto" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Apellidos:</label>
+                                    <input type="text" name="surnames" class="form-control" placeholder="Ej. Mejia Lopez" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Identidad:</label>
+                                    <input type="text" name="dni" class="form-control" maxlength="13" placeholder="13 digitos">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>RTN:</label>
+                                    <input type="text" name="rtn" class="form-control" maxlength="14" placeholder="14 digitos">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Telefono:</label>
+                                    <input type="text" name="phone" class="form-control" placeholder="Ej. 9999-9999">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Correo:</label>
+                                    <input type="email" name="email" class="form-control" placeholder="cliente@correo.com">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Fecha de nacimiento:</label>
+                                    <input type="date" name="date_birthday" class="form-control">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Sexo:</label>
+                                    <select name="gender" class="form-control">
+                                        <option value="male">Masculino</option>
+                                        <option value="female">Femenino</option>
+                                        <option value="other">Otro</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <div class="form-group">
+                                    <label>Direccion:</label>
+                                    <input type="text" name="address" class="form-control" placeholder="Direccion del cliente">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label>Limite de credito:</label>
+                                    <input type="number" name="credit_limit" class="form-control" min="0" step="0.01" value="0.00">
+                                </div>
+                            </div>
+                            <div class="col-md-12">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" name="is_credit_customer" class="custom-control-input" id="clientIsCredit">
+                                    <label class="custom-control-label" for="clientIsCredit">Cliente a credito</label>
+                                </div>
+                                <input type="hidden" name="is_active" value="on">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-flat" data-dismiss="modal">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-success btn-flat">
+                            <i class="fas fa-save"></i> Guardar cliente
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
-        var det = {{ det|safe }};
-        console.log(det);
-        vents.items.products = {{ det|safe }};
-        vents.list();
+        window.saleInitialDetail = {{ det|safe }};
+        window.saleListUrl = "{{ list_url }}";
+        window.saleDefaultProductImage = "{% static 'img/imagen.png' %}";
     </script>
 {% endblock %}
 
+{% block javascript %}{% endblock %}

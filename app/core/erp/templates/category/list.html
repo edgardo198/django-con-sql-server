@@ -1,22 +1,43 @@
 {% extends 'list.html' %}
-{% load static %}
-
-{% block head_list %}
-<script src="{% static 'category/js/list.js' %}"></script>
-{% endblock %}
 
 {% block columns %}
 <tr>
-  <th scope="col" style="width: 10%;">Numero</th>
-  <th scope="col" style="width: 20%;">Nombre</th>
-  <th scope="col" style="width: 50%;">Descipcion</th>
-  <th scope="col" style="width: 20%;">opciones</th>
+    <th scope="col">Numero</th>
+    <th scope="col">Nombre</th>
+    <th scope="col">Descripcion</th>
+    <th scope="col">Estado</th>
+    <th scope="col">Opciones</th>
 </tr>
 {% endblock %}
+
 {% block rows %}
-
-{% endblock %}
-
-{% block javascript %}
-
+    {% for category in object_list %}
+        <tr>
+            <td>{{ category.id }}</td>
+            <td>{{ category.name }}</td>
+            <td>{{ category.description|default:category.desc|default:'-' }}</td>
+            <td>
+                {% if category.is_active %}
+                    <span class="badge badge-success">Activo</span>
+                {% else %}
+                    <span class="badge badge-secondary">Inactivo</span>
+                {% endif %}
+            </td>
+            <td class="text-center">
+                {% if can_change %}
+                    <a href="{% url 'erp:category_update' category.id %}" class="btn btn-primary btn-xs btn-flat">
+                        <i class="fas fa-edit"></i> Editar
+                    </a>
+                {% endif %}
+                {% if can_delete %}
+                    <a href="{% url 'erp:category_delete' category.id %}" class="btn btn-danger btn-xs btn-flat">
+                        <i class="fas fa-trash-alt"></i> Eliminar
+                    </a>
+                {% endif %}
+                {% if not can_change and not can_delete %}
+                    <span class="text-muted">Sin acciones</span>
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
 {% endblock %}

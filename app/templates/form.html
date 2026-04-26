@@ -15,16 +15,18 @@
                     {% else %}
                         <i class="fas fa-edit"></i>
                     {% endif %}
-
                     {{ title }}
                 </h3>
             </div>
             <div class="card-body">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="{{ action }}">
+                {% for hidden in form.hidden_fields %}
+                    {{ hidden }}
+                {% endfor %}
                 {% if form.errors %}
                     <div class="alert alert-danger alert-dismissible">
-                        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+                        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
                         <h5><i class="icon fas fa-ban"></i> Ha ocurrido un error al querer guardar el registro</h5>
                         <ul>
                             {% for field in form %}
@@ -36,10 +38,19 @@
                     </div>
                 {% endif %}
                 {% for field in form.visible_fields %}
-                    <div class="form-group">
-                        <label for="email">{{ field.label }}:</label>
-                        {{ field|add_class:'form-control'|attr:'autocomplete:off' }}
-                    </div>
+                    {% if field.field.widget.input_type == 'checkbox' %}
+                        <div class="form-group">
+                            <div class="custom-control custom-switch">
+                                {{ field|add_class:'custom-control-input' }}
+                                <label class="custom-control-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="form-group">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}:</label>
+                            {{ field|add_class:'form-control'|attr:'autocomplete:off' }}
+                        </div>
+                    {% endif %}
                 {% endfor %}
             </div>
             <div class="card-footer">
@@ -73,9 +84,10 @@
         $('form').on('submit', function (e) {
             e.preventDefault();
             var parameters = new FormData(this);
-            submit_with_ajax(window.location.pathname, 'Notificación', '¿Estas seguro de realizar la siguiente acción?', parameters, function () {
+            submit_with_ajax(window.location.pathname, 'Notificacion', 'Estas seguro de realizar la siguiente accion?', parameters, function () {
                 location.href = '{{ list_url }}';
             });
         });
     </script>
+    {% block extra_js %}{% endblock %}
 {% endblock %}

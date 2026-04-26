@@ -1,1 +1,1 @@
-{% extends 'vtc/body.html' %}
+{% extends request.session.menu_layout_template|default:'vtc/body.html' %}

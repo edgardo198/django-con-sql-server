@@ -1,21 +1,55 @@
 {% extends 'list.html' %}
-{% load static %}
-{% block head_list %}
-    <script src="{% static 'client/js/list.js' %}"></script>
-{% endblock %}
 
 {% block columns %}
     <tr>
-        <th scope="col" style="width: 10%;">Nro</th>
-        <th scope="col" style="width: 15%;">Nombres</th>
-        <th scope="col" style="width: 15%;">Apellidos</th>
-        <th scope="col" style="width: 10%;">Dni</th>
-        <th scope="col" style="width: 15%;">Fecha de nacimiento</th>
-        <th scope="col" style="width: 15%;">Sexo</th>
-        <th scope="col" style="width: 20%;">Opciones</th>
+        <th scope="col">Nro</th>
+        <th scope="col">Cliente</th>
+        <th scope="col">Identidad</th>
+        <th scope="col">RTN</th>
+        <th scope="col">Telefono</th>
+        <th scope="col">Credito</th>
+        <th scope="col">Estado</th>
+        <th scope="col">Opciones</th>
     </tr>
 {% endblock %}
 
-{% block javascript %}
-
+{% block rows %}
+    {% for client in object_list %}
+        <tr>
+            <td>{{ client.id }}</td>
+            <td>{{ client.get_full_name }}</td>
+            <td>{{ client.dni|default:'-' }}</td>
+            <td>{{ client.rtn|default:'-' }}</td>
+            <td>{{ client.phone|default:'-' }}</td>
+            <td>
+                {% if client.is_credit_customer %}
+                    <span class="badge badge-info">L {{ client.credit_limit|floatformat:2 }}</span>
+                {% else %}
+                    <span class="badge badge-secondary">No</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if client.is_active %}
+                    <span class="badge badge-success">Activo</span>
+                {% else %}
+                    <span class="badge badge-secondary">Inactivo</span>
+                {% endif %}
+            </td>
+            <td class="text-center">
+                {% if can_change %}
+                    <a href="{% url 'erp:client_update' client.id %}" class="btn btn-primary btn-xs btn-flat">
+                        <i class="fas fa-edit"></i> Editar
+                    </a>
+                {% endif %}
+                {% if can_delete %}
+                    <a href="{% url 'erp:client_delete' client.id %}" class="btn btn-danger btn-xs btn-flat">
+                        <i class="fas fa-trash-alt"></i> Eliminar
+                    </a>
+                {% endif %}
+                {% if not can_change and not can_delete %}
+                    <span class="text-muted">Sin acciones</span>
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
 {% endblock %}
