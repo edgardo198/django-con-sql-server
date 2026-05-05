@@ -1,8 +1,6 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.urls import reverse_lazy
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from app.core.erp.forms import ClientForm
@@ -14,10 +12,6 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Curren
     model = Client
     template_name = 'client/list.html'
     permission_required = 'erp.view_client'
-
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
         return super().get_queryset().order_by('names', 'surnames')

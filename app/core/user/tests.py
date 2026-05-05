@@ -2,7 +2,8 @@ import io
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.test import RequestFactory, TestCase
+from django.test import Client as DjangoClient, RequestFactory, TestCase
+from django.urls import reverse
 
 from app.core.user.access import (
     ROLE_SELLER,
@@ -135,6 +136,77 @@ class UserAccessAndBootstrapTests(TestCase):
         usernames = list(view.get_queryset().values_list('username', flat=True))
 
         self.assertNotIn(peer_store_admin.username, usernames)
+
+    def test_organization_list_ajax_supports_datatables_payload(self):
+        self.client.force_login(self.super_admin)
+
+        simple_response = self.client.post(
+            reverse('user:organization_list'),
+            {'action': 'searchdata'},
+        )
+        datatable_response = self.client.post(
+            reverse('user:organization_list'),
+            {'action': 'searchdata', 'draw': '3', 'start': '0', 'length': '10'},
+        )
+
+        self.assertEqual(simple_response.status_code, 200)
+        self.assertIsInstance(simple_response.json(), list)
+        payload = datatable_response.json()
+        self.assertEqual(datatable_response.status_code, 200)
+        self.assertEqual(payload['draw'], 3)
+        self.assertEqual(payload['recordsTotal'], 2)
+        self.assertEqual(len(payload['data']), 2)
+        self.assertEqual(payload['data'][0]['name'], 'Centro')
+
+    def test_user_list_ajax_supports_datatables_payload(self):
+        self.client.force_login(self.store_admin)
+
+        simple_response = self.client.post(
+            reverse('user:user_list'),
+            {'action': 'searchdata'},
+        )
+        datatable_response = self.client.post(
+            reverse('user:user_list'),
+            {'action': 'searchdata', 'draw': '4', 'start': '0', 'length': '10'},
+        )
+
+        self.assertEqual(simple_response.status_code, 200)
+        simple_usernames = [item['username'] for item in simple_response.json()]
+        self.assertIn(self.store_admin.username, simple_usernames)
+        self.assertIn(self.same_store_seller.username, simple_usernames)
+        self.assertNotIn(self.super_admin.username, simple_usernames)
+
+        payload = datatable_response.json()
+        self.assertEqual(datatable_response.status_code, 200)
+        self.assertEqual(payload['draw'], 4)
+        self.assertEqual(payload['recordsTotal'], 2)
+        self.assertEqual(len(payload['data']), 2)
+
+    def test_user_and_organization_datatables_work_with_csrf_enabled(self):
+        client = DjangoClient(enforce_csrf_checks=True)
+        client.force_login(self.super_admin)
+
+        organization_page = client.get(reverse('user:organization_list'))
+        csrf_token = client.cookies['csrftoken'].value
+        organization_response = client.post(
+            reverse('user:organization_list'),
+            {'action': 'searchdata', 'draw': '1', 'start': '0', 'length': '10'},
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+        user_page = client.get(reverse('user:user_list'))
+        csrf_token = client.cookies['csrftoken'].value
+        user_response = client.post(
+            reverse('user:user_list'),
+            {'action': 'searchdata', 'draw': '2', 'start': '0', 'length': '10'},
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+
+        self.assertEqual(organization_page.status_code, 200)
+        self.assertEqual(organization_response.status_code, 200)
+        self.assertEqual(organization_response.json()['draw'], 1)
+        self.assertEqual(user_page.status_code, 200)
+        self.assertEqual(user_response.status_code, 200)
+        self.assertEqual(user_response.json()['draw'], 2)
 
     def test_bootstrap_access_command_creates_super_admin_and_group_membership(self):
         stdout = io.StringIO()

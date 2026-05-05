@@ -4,7 +4,6 @@ from django.db.models import F, Q
 from django.http import JsonResponse
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from app.core.erp.forms import ProductForm
@@ -16,10 +15,6 @@ class ProductListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Curre
     model = Product
     template_name = 'product/list.html'
     permission_required = 'erp.view_product'
-
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
 
     def get_current_org(self):
         return self.get_current_organization()
@@ -121,10 +116,6 @@ class ProductCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cur
     permission_required = 'erp.add_product'
     url_redirect = success_url
 
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
-
     def form_valid(self, form):
         form.instance.organization = self.get_current_organization()
         return super().form_valid(form)
@@ -175,10 +166,6 @@ class ProductUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cur
     success_url = reverse_lazy('erp:product_list')
     permission_required = 'erp.change_product'
     url_redirect = success_url
-
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
         return Product.objects.filter(organization=self.get_current_organization())

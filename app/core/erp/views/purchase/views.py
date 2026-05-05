@@ -2,13 +2,11 @@ import json
 from decimal import Decimal
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db import transaction
+from django.db import transaction, models
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse_lazy
-from django.utils.decorators import method_decorator
 from django.views import View
-from django.views.decorators.csrf import csrf_exempt
 
 from app.core.erp.forms import PurchaseForm
 from app.core.erp.mixins import CurrentOrganizationMixin, ValidatePermissionRequiredMixin
@@ -90,10 +88,6 @@ class PurchaseBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin
     template_name = 'purchase/create.html'
     success_url = reverse_lazy('erp:purchase_list')
 
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
-
     def get_object(self):
         if 'pk' not in self.kwargs:
             return None
@@ -117,12 +111,30 @@ class PurchaseBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin
             queryset = queryset.filter(is_active=True)
         return queryset.order_by('name')
 
+    def get_product_search_query(self, term):
+        return (
+            models.Q(name__icontains=term)
+            | models.Q(barcode__icontains=term)
+            | models.Q(internal_code__icontains=term)
+            | models.Q(description__icontains=term)
+        )
+
+    def dispatch(self, request, *args, **kwargs):
+        try:
+            if request.method == 'POST' and request.POST.get('action') == 'search_products' and request.user.is_authenticated:
+                return View.dispatch(self, request, *args, **kwargs)
+        except Exception:
+            pass
+        return super().dispatch(request, *args, **kwargs)
+
     def search_products(self, term):
         data = []
         queryset = self.get_product_queryset()
+        term = (term or '').strip()
         if term:
-            queryset = queryset.filter(name__icontains=term)
-        for product in queryset[:10]:
+            for token in term.split():
+                queryset = queryset.filter(self.get_product_search_query(token))
+        for product in queryset.order_by('name')[:10]:
             item = product.toJSON()
             item['text'] = product.name
             data.append(item)
@@ -244,7 +256,7 @@ class PurchaseBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         try:
             action = request.POST.get('action')
             if action == 'search_products':
-                data = self.search_products(request.POST.get('term', ''))
+                data = self.search_products(request.POST.get('term') or request.POST.get('q') or '')
             elif action in ('add', 'edit'):
                 payload = json.loads(request.POST['purchase'])
                 self.save_purchase_from_payload(payload)

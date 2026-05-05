@@ -1,6 +1,13 @@
 $(function () {
     var config = window.userListConfig || {};
 
+    function getCSRFHeader() {
+        if (typeof window.getCSRFToken === 'function') {
+            return window.getCSRFToken();
+        }
+        return $('meta[name="csrf-token"]').attr('content') || '';
+    }
+
     $('#data').DataTable({
         responsive: true,
         autoWidth: false,
@@ -12,16 +19,33 @@ $(function () {
             data: {
                 'action': 'searchdata'
             },
-            dataSrc: ""
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-CSRFToken', getCSRFHeader());
+            },
+            dataSrc: function (json) {
+                if (Array.isArray(json)) {
+                    return json;
+                }
+                if (json && Array.isArray(json.data)) {
+                    return json.data;
+                }
+                if (json && json.error) {
+                    message_error(json.error);
+                }
+                return [];
+            },
+            error: function (xhr, textStatus, errorThrown) {
+                message_error('No se pudo cargar el listado de usuarios: ' + textStatus + ' ' + errorThrown);
+            }
         },
         columns: [
             {"data": "id"},
-            {"data": "full_name"},
-            {"data": "username"},
-            {"data": "date_joined"},
-            {"data": "image"},
-            {"data": "current_organization"},
-            {"data": "groups"},
+            {"data": "full_name", "defaultContent": ""},
+            {"data": "username", "defaultContent": ""},
+            {"data": "date_joined", "defaultContent": ""},
+            {"data": "image", "defaultContent": ""},
+            {"data": "current_organization", "defaultContent": null},
+            {"data": "groups", "defaultContent": []},
             {"data": "id"},
         ],
         columnDefs: [
@@ -30,7 +54,7 @@ $(function () {
                 class: 'text-center',
                 orderable: false,
                 render: function (data, type, row) {
-                    return '<img src="'+row.image+'" class="img-fluid mx-auto d-block" style="width: 20px; height: 20px;">';
+                    return '<img src="' + (row.image || '/static/img/imagen.png') + '" class="img-fluid mx-auto d-block" style="width: 20px; height: 20px;">';
                 }
             },
             {

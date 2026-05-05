@@ -28,9 +28,12 @@ def env_list(name, default=None):
 DEFAULT_SECRET_KEY = 'vc%m5g%w=dsntpj6k@ot!i9u1yv9jhq==1@=hdzz$v1-9!5b4d'
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', DEFAULT_SECRET_KEY)
 
-DEBUG = env_bool('DJANGO_DEBUG', default=True)
+DEBUG = env_bool('DJANGO_DEBUG', default=os.getenv('DJANGO_ENV', '').strip().lower() != 'production')
 
-ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', default=['127.0.0.1', 'localhost'])
+ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', default=['127.0.0.1', 'localhost', 'testserver'])
+RENDER_EXTERNAL_HOSTNAME = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 if not DEBUG and SECRET_KEY == DEFAULT_SECRET_KEY:
     raise ImproperlyConfigured('Debe definir DJANGO_SECRET_KEY para produccion.')
@@ -42,7 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',
+    'app.core.staticfiles.ProjectStaticFilesConfig',
     'widget_tweaks',
     'app.core.erp',
     'app.core.homepage',
@@ -53,6 +56,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -67,7 +71,7 @@ ROOT_URLCONF = 'app.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'app\\templates')],
+        'DIRS': [os.path.join(BASE_DIR, 'app', 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -105,12 +109,16 @@ USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
-# Use BigAutoField by default to avoid AutoField warnings
+# Django 3.0 ignores this setting, so models also declare BigAutoField explicitly.
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles/')
+STATICFILES_STORAGE = os.getenv(
+    'DJANGO_STATICFILES_STORAGE',
+    'whitenoise.storage.CompressedStaticFilesStorage',
+)
 
 LOGIN_REDIRECT_URL = '/erp/dashboard/'
 LOGOUT_REDIRECT_URL = '/login/'
@@ -122,6 +130,8 @@ MEDIA_URL = '/media/'
 AUTH_USER_MODEL = 'user.User'
 
 CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS', default=[])
+if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(RENDER_EXTERNAL_HOSTNAME)
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False

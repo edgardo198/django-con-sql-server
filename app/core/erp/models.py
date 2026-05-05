@@ -57,6 +57,7 @@ phone_validator = RegexValidator(
 
 
 class AuditModel(models.Model):
+    id = models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
     user_creation = models.ForeignKey(
         'user.User',
         on_delete=models.SET_NULL,
@@ -438,13 +439,19 @@ class FiscalData(AuditModel):
         verbose_name='Leyenda de factura',
     )
 
-    def next_invoice(self):
-        if self.next_invoice_number > self.invoice_range_end:
+    @transaction.atomic
+    def next_invoice(self, lock=True):
+        fiscal = self
+        if lock and self.pk:
+            fiscal = type(self).objects.select_for_update().get(pk=self.pk)
+
+        if fiscal.next_invoice_number > fiscal.invoice_range_end:
             raise ValidationError('Se agotó el rango fiscal autorizado.')
-        current = self.next_invoice_number
-        self.next_invoice_number += 1
-        self.save(update_fields=['next_invoice_number'])
-        return f'{self.invoice_prefix}{str(current).zfill(8)}'
+        current = fiscal.next_invoice_number
+        fiscal.next_invoice_number += 1
+        fiscal.save(update_fields=['next_invoice_number'])
+        self.next_invoice_number = fiscal.next_invoice_number
+        return f'{fiscal.invoice_prefix}{str(current).zfill(8)}'
 
     def clean(self):
         if self.cai_start_date and self.cai_end_date and self.cai_start_date > self.cai_end_date:
@@ -682,22 +689,31 @@ class Purchase(AuditModel):
 
     @transaction.atomic
     def confirm(self, user=None):
+        type(self).objects.select_for_update().get(pk=self.pk)
+        self.refresh_from_db()
+
         if self.status != 'draft':
             raise ValidationError('Solo se pueden confirmar compras en borrador.')
 
-        for detail in self.details.select_related('prod').all():
-            stock_before = detail.prod.stock
-            detail.prod.stock += detail.cant
-            detail.prod.cost = detail.cost
-            detail.prod.save(update_fields=['stock', 'cost'])
+        details = list(self.details.select_related('prod').order_by('prod_id', 'id'))
+        product_map = Product.objects.select_for_update().in_bulk(
+            sorted({detail.prod_id for detail in details})
+        )
+
+        for detail in details:
+            product = product_map[detail.prod_id]
+            stock_before = product.stock
+            product.stock += detail.cant
+            product.cost = detail.cost
+            product.save(update_fields=['stock', 'cost'])
 
             InventoryMovement.objects.create(
                 organization=self.organization,
-                product=detail.prod,
+                product=product,
                 movement_type='purchase',
                 quantity=detail.cant,
                 stock_before=stock_before,
-                stock_after=detail.prod.stock,
+                stock_after=product.stock,
                 description=f'Entrada por compra #{self.id}',
                 reference=f'PUR-{self.id}',
                 user_creation=user,
@@ -712,22 +728,34 @@ class Purchase(AuditModel):
 
     @transaction.atomic
     def cancel(self, reason='', user=None):
+        type(self).objects.select_for_update().get(pk=self.pk)
+        self.refresh_from_db()
+
         if self.status != 'confirmed':
             raise ValidationError('Solo se pueden anular compras confirmadas.')
 
-        for detail in self.details.select_related('prod').all():
-            stock_before = detail.prod.stock
-            new_stock = max(0, detail.prod.stock - detail.cant)
-            detail.prod.stock = new_stock
-            detail.prod.save(update_fields=['stock'])
+        details = list(self.details.select_related('prod').order_by('prod_id', 'id'))
+        product_map = Product.objects.select_for_update().in_bulk(
+            sorted({detail.prod_id for detail in details})
+        )
+
+        for detail in details:
+            product = product_map[detail.prod_id]
+            stock_before = product.stock
+            if detail.cant > product.stock:
+                raise ValidationError(
+                    f'No se puede anular la compra: stock insuficiente para {product.name}. Disponible: {product.stock}'
+                )
+            product.stock -= detail.cant
+            product.save(update_fields=['stock'])
 
             InventoryMovement.objects.create(
                 organization=self.organization,
-                product=detail.prod,
+                product=product,
                 movement_type='purchase_cancel',
                 quantity=detail.cant,
                 stock_before=stock_before,
-                stock_after=detail.prod.stock,
+                stock_after=product.stock,
                 description=f'Anulación compra #{self.id}',
                 reference=f'PUR-{self.id}-CAN',
                 user_creation=user,
@@ -763,6 +791,7 @@ class Purchase(AuditModel):
 
 
 class DetPurchase(models.Model):
+    id = models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
     purchase = models.ForeignKey(
         Purchase,
         on_delete=models.CASCADE,
@@ -948,44 +977,53 @@ class Sale(AuditModel):
         if self.document_type != 'invoice' or self.number:
             return
 
-        fiscal = getattr(self.organization, 'fiscal_data', None)
+        fiscal = FiscalData.objects.select_for_update().filter(
+            organization_id=self.organization_id
+        ).first()
         if not fiscal:
             raise ValidationError('La organización no tiene datos fiscales configurados.')
 
         if fiscal.cai_end_date and self.date_joined > fiscal.cai_end_date:
             raise ValidationError('El CAI vigente está vencido.')
 
-        self.number = fiscal.next_invoice()
+        self.number = fiscal.next_invoice(lock=False)
         self.cai = fiscal.cai
         self.issue_deadline = fiscal.cai_end_date
 
     @transaction.atomic
     def confirm(self, user=None):
+        type(self).objects.select_for_update().get(pk=self.pk)
+        self.refresh_from_db()
+
         if self.status != 'draft':
             raise ValidationError('Solo se pueden confirmar ventas en borrador.')
 
         self._assign_fiscal_number()
 
-        for detail in self.details.select_related('prod').all():
-            if not detail.prod.is_service:
-                if detail.cant > detail.prod.stock:
-                    raise ValidationError(f'Stock insuficiente para {detail.prod.name}. Disponible: {detail.prod.stock}')
+        details = list(self.details.select_related('prod').order_by('prod_id', 'id'))
+        stock_details = [detail for detail in details if not detail.prod.is_service]
+        product_map = Product.objects.select_for_update().in_bulk(
+            sorted({detail.prod_id for detail in stock_details})
+        )
 
-        for detail in self.details.select_related('prod').all():
-            if detail.prod.is_service:
-                continue
+        for detail in stock_details:
+            product = product_map[detail.prod_id]
+            if detail.cant > product.stock:
+                raise ValidationError(f'Stock insuficiente para {product.name}. Disponible: {product.stock}')
 
-            stock_before = detail.prod.stock
-            detail.prod.stock -= detail.cant
-            detail.prod.save(update_fields=['stock'])
+        for detail in stock_details:
+            product = product_map[detail.prod_id]
+            stock_before = product.stock
+            product.stock -= detail.cant
+            product.save(update_fields=['stock'])
 
             InventoryMovement.objects.create(
                 organization=self.organization,
-                product=detail.prod,
+                product=product,
                 movement_type='sale',
                 quantity=detail.cant,
                 stock_before=stock_before,
-                stock_after=detail.prod.stock,
+                stock_after=product.stock,
                 description=f'Salida por venta #{self.id}',
                 reference=f'SAL-{self.id}',
                 user_creation=user,
@@ -1013,24 +1051,31 @@ class Sale(AuditModel):
 
     @transaction.atomic
     def cancel(self, reason='', user=None):
+        type(self).objects.select_for_update().get(pk=self.pk)
+        self.refresh_from_db()
+
         if self.status != 'confirmed':
             raise ValidationError('Solo se pueden anular ventas confirmadas.')
 
-        for detail in self.details.select_related('prod').all():
-            if detail.prod.is_service:
-                continue
+        details = list(self.details.select_related('prod').order_by('prod_id', 'id'))
+        stock_details = [detail for detail in details if not detail.prod.is_service]
+        product_map = Product.objects.select_for_update().in_bulk(
+            sorted({detail.prod_id for detail in stock_details})
+        )
 
-            stock_before = detail.prod.stock
-            detail.prod.stock += detail.cant
-            detail.prod.save(update_fields=['stock'])
+        for detail in stock_details:
+            product = product_map[detail.prod_id]
+            stock_before = product.stock
+            product.stock += detail.cant
+            product.save(update_fields=['stock'])
 
             InventoryMovement.objects.create(
                 organization=self.organization,
-                product=detail.prod,
+                product=product,
                 movement_type='sale_cancel',
                 quantity=detail.cant,
                 stock_before=stock_before,
-                stock_after=detail.prod.stock,
+                stock_after=product.stock,
                 description=f'Anulación venta #{self.id}',
                 reference=f'SAL-{self.id}-CAN',
                 user_creation=user,
@@ -1075,6 +1120,7 @@ class Sale(AuditModel):
 
 
 class DetSale(models.Model):
+    id = models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
     sale = models.ForeignKey(
         Sale,
         on_delete=models.CASCADE,

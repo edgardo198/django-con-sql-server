@@ -1,6 +1,13 @@
 $(function () {
     var config = window.organizationListConfig || {};
 
+    function getCSRFHeader() {
+        if (typeof window.getCSRFToken === 'function') {
+            return window.getCSRFToken();
+        }
+        return $('meta[name="csrf-token"]').attr('content') || '';
+    }
+
     $('#data').DataTable({
         responsive: true,
         autoWidth: false,
@@ -12,16 +19,33 @@ $(function () {
             data: {
                 'action': 'searchdata'
             },
-            dataSrc: ""
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('X-CSRFToken', getCSRFHeader());
+            },
+            dataSrc: function (json) {
+                if (Array.isArray(json)) {
+                    return json;
+                }
+                if (json && Array.isArray(json.data)) {
+                    return json.data;
+                }
+                if (json && json.error) {
+                    message_error(json.error);
+                }
+                return [];
+            },
+            error: function (xhr, textStatus, errorThrown) {
+                message_error('No se pudo cargar el listado de tiendas: ' + textStatus + ' ' + errorThrown);
+            }
         },
         columns: [
             {"data": "id"},
-            {"data": "name"},
-            {"data": "code"},
-            {"data": "phone"},
-            {"data": "email"},
-            {"data": "users_count"},
-            {"data": "is_active"},
+            {"data": "name", "defaultContent": ""},
+            {"data": "code", "defaultContent": ""},
+            {"data": "phone", "defaultContent": ""},
+            {"data": "email", "defaultContent": ""},
+            {"data": "users_count", "defaultContent": 0},
+            {"data": "is_active", "defaultContent": false},
             {"data": "id"},
         ],
         columnDefs: [
@@ -29,9 +53,9 @@ $(function () {
                 targets: [1],
                 render: function (data, type, row) {
                     if (config.currentOrganizationId === row.id) {
-                        return data + ' <span class="badge badge-info">Activa</span>';
+                        return (data || '') + ' <span class="badge badge-info">Activa</span>';
                     }
-                    return data;
+                    return data || '';
                 }
             },
             {

@@ -16,12 +16,24 @@ function formatCurrency(value) {
     return 'L. ' + parseFloat(value || 0).toFixed(2);
 }
 
+function escapeHtml(value) {
+    return $('<div>').text(value == null ? '' : value).html();
+}
+
 function showReportError(message) {
     if (typeof message_error === 'function') {
         message_error(message);
         return;
     }
-    $('#report-js-warning').removeClass('d-none').append('<div>' + message + '</div>');
+    $('#report-js-warning').removeClass('d-none').empty();
+    $('#report-js-warning').append('<div>' + escapeHtml(message) + '</div>');
+}
+
+function getReportCSRFToken() {
+    if (typeof window.getCSRFToken === 'function') {
+        return window.getCSRFToken();
+    }
+    return $('meta[name="csrf-token"]').attr('content') || '';
 }
 
 function getBaseDate() {
@@ -132,15 +144,15 @@ function renderPlainRows(rows) {
         tbody.append(
             '<tr>' +
             '<td>' + row.id + '</td>' +
-            '<td>' + row.organization + '</td>' +
-            '<td>' + row.client + '</td>' +
-            '<td>' + row.date_joined + '</td>' +
+            '<td>' + escapeHtml(row.organization) + '</td>' +
+            '<td>' + escapeHtml(row.client) + '</td>' +
+            '<td>' + escapeHtml(row.date_joined) + '</td>' +
             '<td class="text-center">' + row.items_count + '</td>' +
             '<td class="text-center">' + formatCurrency(row.subtotal) + '</td>' +
             '<td class="text-center">' + formatCurrency(row.tax_total || row.iva) + '</td>' +
             '<td class="text-center">' + formatCurrency(row.total) + '</td>' +
             '<td class="text-center">' + formatCurrency(row.profit) + '</td>' +
-            '<td class="text-center">' + row.status + '</td>' +
+            '<td class="text-center">' + escapeHtml(row.status) + '</td>' +
             '</tr>'
         );
     });
@@ -148,11 +160,12 @@ function renderPlainRows(rows) {
 
 function generate_report_fallback(reportRequest) {
     setReportLoading(true);
-    $('#report-js-warning').removeClass('d-none');
+    $('#report-js-warning').removeClass('d-none').text('Mostrando el reporte en modo basico.');
 
     $.ajax({
         url: window.location.pathname,
         type: 'POST',
+        headers: {'X-CSRFToken': getReportCSRFToken()},
         data: reportRequest.parameters,
         dataType: 'json'
     }).done(function (json) {
@@ -268,6 +281,7 @@ function generate_report() {
             beforeSend: function () {
                 setReportLoading(true);
             },
+            headers: {'X-CSRFToken': getReportCSRFToken()},
             dataSrc: function (json) {
                 if (json.error) {
                     showReportError(json.error);
@@ -286,7 +300,7 @@ function generate_report() {
                 setReportLoading(false);
             }
         },
-        order: false,
+        order: [],
         paging: false,
         ordering: false,
         info: false,
@@ -340,24 +354,30 @@ function generate_report() {
 
 $(function () {
     var initialRange = getPeriodRange(current_period);
+    var dateRangeInput = $('input[name="date_range"]');
 
-    $('input[name="date_range"]').daterangepicker({
-        startDate: initialRange.startDate,
-        endDate: initialRange.endDate,
-        locale: {
-            format: 'YYYY-MM-DD',
-            applyLabel: '<i class="fas fa-chart-pie"></i> Aplicar',
-            cancelLabel: '<i class="fas fa-times"></i> Cancelar'
-        }
-    }).on('apply.daterangepicker', function (ev, picker) {
-        current_period = 'custom';
-        date_range = picker;
-        generate_report();
-    }).on('cancel.daterangepicker', function () {
-        current_period = reportConfig.defaultPeriod || 'month';
-        date_range = null;
-        generate_report();
-    });
+    if ($.fn.daterangepicker) {
+        dateRangeInput.daterangepicker({
+            startDate: initialRange.startDate,
+            endDate: initialRange.endDate,
+            locale: {
+                format: 'YYYY-MM-DD',
+                applyLabel: '<i class="fas fa-chart-pie"></i> Aplicar',
+                cancelLabel: '<i class="fas fa-times"></i> Cancelar'
+            }
+        }).on('apply.daterangepicker', function (ev, picker) {
+            current_period = 'custom';
+            date_range = picker;
+            generate_report();
+        }).on('cancel.daterangepicker', function () {
+            current_period = reportConfig.defaultPeriod || 'month';
+            date_range = null;
+            generate_report();
+        });
+    } else {
+        $('#report-js-warning').removeClass('d-none').text('El selector de fechas no esta disponible. Puedes usar los filtros rapidos.');
+        dateRangeInput.prop('readonly', true);
+    }
 
     $('.btnReportPeriod').on('click', function () {
         current_period = $(this).data('period');

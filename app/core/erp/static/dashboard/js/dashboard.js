@@ -146,7 +146,11 @@
         params.append('year', year);
         params.append('month', month);
 
-        fetch(window.location.pathname, { method: 'POST', body: params })
+        fetch(window.location.pathname, {
+            method: 'POST',
+            body: params,
+            headers: {'X-CSRFToken': window.getCSRFToken ? window.getCSRFToken() : ''}
+        })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data && !data.error) {
@@ -184,7 +188,11 @@
             params.append('year', year);
             params.append('month', month);
 
-            fetch(window.location.pathname, { method: 'POST', body: params })
+            fetch(window.location.pathname, {
+                method: 'POST',
+                body: params,
+                headers: {'X-CSRFToken': window.getCSRFToken ? window.getCSRFToken() : ''}
+            })
                 .then(function (r) { return r.blob(); })
                 .then(function (blob) {
                     var url = window.URL.createObjectURL(blob);

@@ -4,15 +4,13 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db import transaction
+from django.db import transaction, models
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import get_template
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
-from django.utils.decorators import method_decorator
 from django.views import View
-from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DeleteView, ListView
 from xhtml2pdf import pisa
 
@@ -25,10 +23,6 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CurrentO
     model = Sale
     template_name = 'sale/list.html'
     permission_required = 'erp.view_sale'
-
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
         return (
@@ -43,7 +37,27 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CurrentO
         try:
             action = request.POST.get('action')
             if action == 'searchdata':
-                data = [sale.toJSON() for sale in self.get_queryset()]
+                # Compatibilidad:
+                # - Si la petición incluye 'start' devolvemos el formato para DataTables
+                # - Si no, devolvemos la lista simple de ventas (usada por los tests y llamadas AJAX simples)
+                qs = self.get_queryset()
+                if 'start' in request.POST:
+                    try:
+                        start = int(request.POST.get('start', 0))
+                        length = int(request.POST.get('length', 100))
+                    except Exception:
+                        start = 0
+                        length = 100
+                    total = qs.count()
+                    sales_qs = qs[start : start + length]
+                    data = {
+                        'recordsTotal': total,
+                        'recordsFiltered': total,
+                        'data': [sale.toJSON() for sale in sales_qs],
+                    }
+                else:
+                    # Petición simple: retornar lista de objetos JSON
+                    data = [sale.toJSON() for sale in qs]
             elif action == 'search_details_prod':
                 sale_id = request.POST.get('id')
                 data = [
@@ -76,10 +90,6 @@ class SaleBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cu
     template_name = 'sale/create.html'
     success_url = reverse_lazy('erp:sale_list')
 
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
-
     def get_object(self):
         if 'pk' not in self.kwargs:
             return None
@@ -103,12 +113,25 @@ class SaleBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cu
             queryset = queryset.filter(is_active=True)
         return queryset.order_by('name')
 
+    def get_product_search_query(self, term):
+        return (
+            models.Q(name__icontains=term)
+            | models.Q(barcode__icontains=term)
+            | models.Q(internal_code__icontains=term)
+            | models.Q(description__icontains=term)
+            | models.Q(category__name__icontains=term)
+            | models.Q(cat__name__icontains=term)
+        )
+
     def search_products(self, term):
         data = []
         queryset = self.get_product_queryset()
+        term = (term or '').strip()
         if term:
-            queryset = queryset.filter(name__icontains=term)
-        for product in queryset[:10]:
+            # Buscar por nombre, código de barras o código interno para mayor flexibilidad
+            for token in term.split():
+                queryset = queryset.filter(self.get_product_search_query(token))
+        for product in queryset.order_by('name')[:10]:
             item = product.toJSON()
             item['text'] = product.name
             data.append(item)
@@ -185,9 +208,15 @@ class SaleBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cu
             sale.details.all().delete()
             self.reset_totals(sale)
 
+        # Optimizar: obtener todos los productos en una sola consulta
+        product_ids = []
         for item in products:
-            product_id = self.get_required_int(item.get('id'), 'Hay un producto sin identificador valido en el detalle.')
-            product = self.get_product_queryset().filter(pk=product_id).first()
+            product_ids.append(self.get_required_int(item.get('id'), 'Hay un producto sin identificador valido en el detalle.'))
+        product_map = {p.id: p for p in self.get_product_queryset().filter(pk__in=product_ids)}
+
+        for item in products:
+            product_id = int(item.get('id'))
+            product = product_map.get(product_id)
             if product is None:
                 raise Exception('El producto seleccionado no pertenece a la tienda activa o esta inactivo.')
 
@@ -208,29 +237,47 @@ class SaleBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cu
         organization = self.get_current_organization()
         sale = self.get_object() or Sale(organization=organization)
 
+        if sale.pk and sale.status != 'draft':
+            raise Exception('Solo se pueden editar ventas en borrador.')
+
         sale.organization = organization
-        sale.cli_id = self.get_required_int(payload.get('cli'), 'Debe seleccionar un cliente antes de registrar la venta.')
+        client_id = self.get_required_int(payload.get('cli'), 'Debe seleccionar un cliente antes de registrar la venta.')
+        if not Client.objects.filter(pk=client_id, organization=organization, is_active=True).exists():
+            raise Exception('El cliente seleccionado no pertenece a la tienda activa o esta inactivo.')
+
+        products = payload.get('products') or []
+        if not products:
+            raise Exception('Debe ingresar al menos un producto en la venta.')
+
+        sale.cli_id = client_id
         sale.date_joined = payload['date_joined']
         sale.observation = payload.get('observation') or ''
+        sale.amount_paid = self.get_decimal(payload.get('amount_paid', 0), 'El monto pagado no es valido.')
         sale.save()
 
         sale.details.all().delete()
         self.reset_totals(sale)
 
-        for item in payload.get('products', []):
-            product_id = self.get_required_int(item.get('id'), 'Hay un producto sin identificador valido en el detalle.')
+        # Optimizar: obtener todos los productos en una sola consulta
+        product_ids = []
+        for item in products:
+            product_ids.append(self.get_required_int(item.get('id'), 'Hay un producto sin identificador valido en el detalle.'))
+        product_map = {p.id: p for p in self.get_product_queryset().filter(pk__in=product_ids)}
+
+        for item in products:
+            product_id = int(item.get('id'))
             quantity = self.get_positive_int(item.get('cant'), 'La cantidad de cada producto debe ser mayor que cero.')
+            product = product_map.get(product_id)
+            if product is None:
+                raise Exception('El producto seleccionado no pertenece a la tienda activa o esta inactivo.')
+
             DetSale.objects.create(
                 sale=sale,
-                prod_id=product_id,
+                prod=product,
                 cant=quantity,
                 price=self.get_decimal(item.get('price', item.get('pvp', 0)), 'El precio de cada producto debe ser numerico.'),
                 cost=self.get_decimal(item.get('cost', 0), 'El costo de cada producto debe ser numerico.'),
             )
-            product = Product.objects.get(pk=product_id, organization=organization)
-            if not product.is_service:
-                product.stock = max(0, product.stock - quantity)
-                product.save(update_fields=['stock'])
 
         # Accept 'tax_total' or legacy 'iva' and keep compatibility
         iva_amount = self.get_decimal(payload.get('tax_total', payload.get('iva', 0)), 'El impuesto no es valido.')
@@ -283,7 +330,7 @@ class SaleBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cu
         try:
             action = request.POST.get('action')
             if action == 'search_products':
-                data = self.search_products(request.POST.get('term', ''))
+                data = self.search_products(request.POST.get('term') or request.POST.get('q') or '')
             elif action == 'create_client':
                 form = ClientForm(request.POST, request=request)
                 if form.is_valid():

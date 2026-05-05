@@ -241,18 +241,22 @@ $(function () {
             url: window.location.pathname,
             data: function (params) {
                 return {
-                    term: params.term,
+                    term: params.term || '',
                     action: 'search_products'
                 };
             },
             processResults: function (data) {
-                return {
-                    results: data
-                };
+                if (Array.isArray(data)) {
+                    return { results: data };
+                }
+                if (data && Array.isArray(data.results)) {
+                    return { results: data.results };
+                }
+                return { results: [] };
             }
         },
-        placeholder: 'Ingrese una descripcion',
-        minimumInputLength: 1,
+        placeholder: 'Buscar producto',
+        minimumInputLength: 0,
         templateResult: renderProductOption,
         templateSelection: function (product) {
             return product.text || product.name || '';

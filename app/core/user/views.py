@@ -2,8 +2,6 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView, View
 
 from app.core.erp.mixins import ValidatePermissionRequiredMixin
@@ -31,18 +29,40 @@ class OrganizationListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     template_name = 'organization/list.html'
     permission_required = 'user.view_organization'
 
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
-
     def get_queryset(self):
         return self.get_organization_queryset()
+
+    def get_datatable_payload(self, request, rows):
+        if 'draw' not in request.POST:
+            return rows
+
+        try:
+            draw = int(request.POST.get('draw', 1))
+            start = int(request.POST.get('start', 0))
+            length = int(request.POST.get('length', len(rows)))
+        except (TypeError, ValueError):
+            draw = 1
+            start = 0
+            length = len(rows)
+
+        if length < 0:
+            page_rows = rows[start:]
+        else:
+            page_rows = rows[start:start + length]
+
+        return {
+            'draw': draw,
+            'recordsTotal': len(rows),
+            'recordsFiltered': len(rows),
+            'data': page_rows,
+        }
 
     def post(self, request, *args, **kwargs):
         data = {}
         try:
-            if request.POST['action'] == 'searchdata':
-                data = [organization.toJSON() for organization in self.get_queryset()]
+            if request.POST.get('action') == 'searchdata':
+                rows = [organization.toJSON() for organization in self.get_queryset()]
+                data = self.get_datatable_payload(request, rows)
             else:
                 data['error'] = 'Ha ocurrido un error'
         except Exception as e:
@@ -194,18 +214,40 @@ class UserListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UserAcce
     template_name = 'user/list.html'
     permission_required = 'user.view_user'
 
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
-
     def get_queryset(self):
         return self.get_user_queryset()
+
+    def get_datatable_payload(self, request, rows):
+        if 'draw' not in request.POST:
+            return rows
+
+        try:
+            draw = int(request.POST.get('draw', 1))
+            start = int(request.POST.get('start', 0))
+            length = int(request.POST.get('length', len(rows)))
+        except (TypeError, ValueError):
+            draw = 1
+            start = 0
+            length = len(rows)
+
+        if length < 0:
+            page_rows = rows[start:]
+        else:
+            page_rows = rows[start:start + length]
+
+        return {
+            'draw': draw,
+            'recordsTotal': len(rows),
+            'recordsFiltered': len(rows),
+            'data': page_rows,
+        }
 
     def post(self, request, *args, **kwargs):
         data = {}
         try:
-            if request.POST['action'] == 'searchdata':
-                data = [user.toJSON() for user in self.get_queryset()]
+            if request.POST.get('action') == 'searchdata':
+                rows = [user.toJSON() for user in self.get_queryset()]
+                data = self.get_datatable_payload(request, rows)
             else:
                 data['error'] = 'Ha ocurrido un error'
         except Exception as e:

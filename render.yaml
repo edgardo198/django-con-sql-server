@@ -1,0 +1,34 @@
+databases:
+  - name: django-postgres-db
+    databaseName: django_postgres
+    user: django_postgres
+
+services:
+  - type: web
+    name: django-postgres
+    runtime: python
+    buildCommand: bash build.sh
+    startCommand: bash start.sh
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.8.18
+      - key: DJANGO_ENV
+        value: production
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_USE_PROXY_SSL_HEADER
+        value: "true"
+      - key: DJANGO_SECURE_SSL_REDIRECT
+        value: "true"
+      - key: SUPERADMIN_USERNAME
+        value: superadmin
+      - key: SUPERADMIN_EMAIL
+        value: superadmin@example.com
+      - key: SUPERADMIN_PASSWORD
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: django-postgres-db
+          property: connectionString

@@ -7,7 +7,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.template.loader import get_template
-from django.test import RequestFactory, TestCase
+from django.test import Client as DjangoClient, RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -293,7 +293,101 @@ class ERPDashboardAndReportsTests(TestCase):
         self.assertEqual(payload[0]['prod']['name'], 'Leche')
         self.assertEqual(payload[0]['cant'], 1)
 
-    def test_sale_update_restores_previous_stock_before_reapplying_details(self):
+    def test_sale_create_renders_product_search_selector(self):
+        response = self.client.get(reverse('erp:sale_create'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'sale-product-search')
+        self.assertContains(response, 'sale/js/form.js')
+
+    def test_sale_product_search_returns_first_active_products_without_term(self):
+        inactive_product = Product.objects.create(
+            organization=self.organization,
+            name='Producto Inactivo',
+            cost=Decimal('8.00'),
+            pvp=Decimal('14.00'),
+            stock=5,
+            is_active=False,
+        )
+
+        response = self.client.post(
+            reverse('erp:sale_create'),
+            {'action': 'search_products', 'term': ''},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        product_ids = [item['id'] for item in payload]
+        self.assertEqual(product_ids, [self.product.id])
+        self.assertNotIn(inactive_product.id, product_ids)
+
+    def test_sale_product_search_requires_sale_permission(self):
+        user_without_sale_perm = get_user_model().objects.create_user(
+            username='sin_ventas',
+            password='secret123',
+        )
+        user_without_sale_perm.organizations.add(self.organization)
+        user_without_sale_perm.current_organization = self.organization
+        user_without_sale_perm.save(update_fields=['current_organization'])
+        self.client.force_login(user_without_sale_perm)
+
+        get_response = self.client.get(reverse('erp:sale_create'))
+        post_response = self.client.post(
+            reverse('erp:sale_create'),
+            {'action': 'search_products', 'term': ''},
+        )
+
+        self.assertEqual(get_response.status_code, 302)
+        self.assertEqual(post_response.status_code, 302)
+
+    def test_sale_product_search_works_with_csrf_enabled(self):
+        client = DjangoClient(enforce_csrf_checks=True)
+        client.force_login(self.user)
+        get_response = client.get(reverse('erp:sale_create'))
+        csrf_token = client.cookies['csrftoken'].value
+
+        response = client.post(
+            reverse('erp:sale_create'),
+            {'action': 'search_products', 'term': ''},
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+
+        self.assertEqual(get_response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item['id'] for item in response.json()], [self.product.id])
+
+    def test_sale_create_works_with_csrf_enabled(self):
+        client = DjangoClient(enforce_csrf_checks=True)
+        client.force_login(self.user)
+        get_response = client.get(reverse('erp:sale_create'))
+        csrf_token = client.cookies['csrftoken'].value
+        payload = {
+            'cli': self.customer.id,
+            'cash_session': '',
+            'document_type': 'receipt',
+            'payment_term': 'cash',
+            'date_joined': timezone.localdate().strftime('%Y-%m-%d'),
+            'due_date': '',
+            'discount': '0.00',
+            'amount_paid': '0.00',
+            'observation': 'Venta con csrf QA',
+            'products': [
+                {'id': self.product.id, 'cant': 1, 'price': '25.00', 'cost': '15.00', 'discount': '0.00'},
+            ],
+        }
+
+        response = client.post(
+            reverse('erp:sale_create'),
+            {'action': 'add', 'sale': json.dumps(payload)},
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+
+        self.assertEqual(get_response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('error', response.json())
+        self.assertTrue(Sale.objects.filter(organization=self.organization, observation='Venta con csrf QA').exists())
+
+    def test_sale_update_legacy_payload_keeps_stock_until_confirmation(self):
         response = self.client.post(
             reverse('erp:sale_update', args=[self.sale.id]),
             {
@@ -320,7 +414,7 @@ class ERPDashboardAndReportsTests(TestCase):
         self.product.refresh_from_db()
         self.sale.refresh_from_db()
 
-        self.assertEqual(self.product.stock, 8)
+        self.assertEqual(self.product.stock, 10)
         self.assertEqual(self.sale.subtotal, Decimal('50.00'))
         self.assertEqual(self.sale.iva, Decimal('5.00'))
         self.assertEqual(self.sale.total, Decimal('55.00'))
@@ -840,6 +934,57 @@ class ERPDashboardAndReportsTests(TestCase):
             'Hay un producto sin identificador valido en el detalle.',
         )
 
+    def test_purchase_product_search_is_scoped_and_accepts_flexible_terms(self):
+        self.product.name = 'Leche Entera Premium 1 Litro'
+        self.product.barcode = 'BAR-LECHE-001'
+        self.product.internal_code = 'LACT-001'
+        self.product.description = 'Producto lacteo refrigerado'
+        self.product.save(update_fields=['name', 'barcode', 'internal_code', 'description'])
+
+        Product.objects.create(
+            organization=self.secondary_organization,
+            name='Leche Entera Norte',
+            barcode='BAR-LECHE-002',
+            internal_code='LACT-002',
+            cost=Decimal('12.00'),
+            pvp=Decimal('22.00'),
+            stock=8,
+        )
+
+        response = self.client.post(
+            reverse('erp:purchase_create'),
+            {'action': 'search_products', 'term': '  leche litro  '},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]['id'], self.product.id)
+        self.assertEqual(payload[0]['text'], 'Leche Entera Premium 1 Litro')
+
+    def test_purchase_product_search_accepts_q_parameter_and_codes(self):
+        self.product.barcode = '750-XYZ-001'
+        self.product.internal_code = 'INT-LECHE-77'
+        self.product.description = 'Bebida para cafeteria'
+        self.product.save(update_fields=['barcode', 'internal_code', 'description'])
+
+        barcode_response = self.client.post(
+            reverse('erp:purchase_create'),
+            {'action': 'search_products', 'q': '750-XYZ'},
+        )
+        internal_code_response = self.client.post(
+            reverse('erp:purchase_create'),
+            {'action': 'search_products', 'q': 'INT-LECHE'},
+        )
+        description_response = self.client.post(
+            reverse('erp:purchase_create'),
+            {'action': 'search_products', 'q': 'cafeteria'},
+        )
+
+        self.assertEqual([item['id'] for item in barcode_response.json()], [self.product.id])
+        self.assertEqual([item['id'] for item in internal_code_response.json()], [self.product.id])
+        self.assertEqual([item['id'] for item in description_response.json()], [self.product.id])
+
     def test_sale_create_returns_clear_error_when_client_is_missing(self):
         payload = {
             'cli': '',
@@ -866,6 +1011,62 @@ class ERPDashboardAndReportsTests(TestCase):
             response.json()['error'],
             'Debe seleccionar un cliente antes de registrar la venta.',
         )
+
+    def test_sale_product_search_is_scoped_and_accepts_flexible_terms(self):
+        self.product.name = 'Leche Entera Premium 1 Litro'
+        self.product.barcode = 'BAR-LECHE-001'
+        self.product.internal_code = 'LACT-001'
+        self.product.description = 'Producto lacteo refrigerado'
+        self.product.save(update_fields=['name', 'barcode', 'internal_code', 'description'])
+
+        Product.objects.create(
+            organization=self.secondary_organization,
+            name='Leche Entera Norte',
+            barcode='BAR-LECHE-002',
+            internal_code='LACT-002',
+            cost=Decimal('12.00'),
+            pvp=Decimal('22.00'),
+            stock=8,
+        )
+
+        response = self.client.post(
+            reverse('erp:sale_create'),
+            {'action': 'search_products', 'term': '  leche litro  '},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]['id'], self.product.id)
+        self.assertEqual(payload[0]['text'], 'Leche Entera Premium 1 Litro')
+
+    def test_sale_product_search_finds_codes_and_description(self):
+        self.product.barcode = '750-XYZ-001'
+        self.product.internal_code = 'INT-LECHE-77'
+        self.product.description = 'Bebida para cafeteria'
+        self.product.save(update_fields=['barcode', 'internal_code', 'description'])
+
+        barcode_response = self.client.post(
+            reverse('erp:sale_create'),
+            {'action': 'search_products', 'term': '750-XYZ'},
+        )
+        internal_code_response = self.client.post(
+            reverse('erp:sale_create'),
+            {'action': 'search_products', 'term': 'INT-LECHE'},
+        )
+        description_response = self.client.post(
+            reverse('erp:sale_create'),
+            {'action': 'search_products', 'term': 'cafeteria'},
+        )
+        category_response = self.client.post(
+            reverse('erp:sale_create'),
+            {'action': 'search_products', 'term': 'Lacteos'},
+        )
+
+        self.assertEqual([item['id'] for item in barcode_response.json()], [self.product.id])
+        self.assertEqual([item['id'] for item in internal_code_response.json()], [self.product.id])
+        self.assertEqual([item['id'] for item in description_response.json()], [self.product.id])
+        self.assertEqual([item['id'] for item in category_response.json()], [self.product.id])
 
     def test_sale_pages_support_create_confirm_invoice_and_cancel_cycle(self):
         FiscalData.objects.update_or_create(

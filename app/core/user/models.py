@@ -47,6 +47,8 @@ class Organization(BaseModel):
 
 
 class User(AbstractUser):
+    id = models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
+    first_name = models.CharField('first name', max_length=150, blank=True)
     image = models.ImageField(upload_to='users/%y/%m/%d', null=True, blank=True)
     organizations = models.ManyToManyField(
         Organization,

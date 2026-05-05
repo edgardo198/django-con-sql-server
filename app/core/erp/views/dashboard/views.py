@@ -10,8 +10,6 @@ from django.db.models import Count, F, Sum
 from django.http import JsonResponse, HttpResponse
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import TemplateView
 
 from app.core.erp.mixins import CurrentOrganizationMixin
@@ -35,10 +33,6 @@ class DashboardView(LoginRequiredMixin, CurrentOrganizationMixin, TemplateView):
         'Noviembre',
         'Diciembre',
     ]
-
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
 
     def _to_float(self, value):
         return float(value or 0)
