@@ -27,6 +27,10 @@
 {% if not cashmovement_list_url %}
     {% url 'cashmovement_list' as cashmovement_list_url %}
 {% endif %}
+{% url 'erp:accounts_receivable_list' as accounts_receivable_list_url %}
+{% if not accounts_receivable_list_url %}
+    {% url 'accounts_receivable_list' as accounts_receivable_list_url %}
+{% endif %}
 {% url 'erp:inventorymovement_list' as inventorymovement_list_url %}
 {% if not inventorymovement_list_url %}
     {% url 'inventorymovement_list' as inventorymovement_list_url %}
@@ -99,7 +103,7 @@
                         </ul>
                     </li>
                 {% endif %}
-                {% if perms.erp.view_cashsession or perms.erp.view_cashmovement or perms.erp.view_taxrate or perms.erp.view_fiscaldata or perms.erp.add_fiscaldata or perms.erp.change_fiscaldata %}
+                {% if perms.erp.view_cashsession or perms.erp.view_cashmovement or perms.erp.view_sale or perms.erp.view_taxrate or perms.erp.view_fiscaldata or perms.erp.add_fiscaldata or perms.erp.change_fiscaldata %}
                     <li class="nav-item dropdown">
                         <a id="financeMenu" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
                            class="nav-link dropdown-toggle app-menu-link"><i class="fas fa-cash-register"></i> Finanzas</a>
@@ -109,6 +113,9 @@
                             {% endif %}
                             {% if perms.erp.view_cashmovement %}
                                 <li><a href="{{ cashmovement_list_url|default:'/erp/cash-movement/list/' }}" class="dropdown-item"><i class="fas fa-money-bill-wave"></i> Movimientos de caja</a></li>
+                            {% endif %}
+                            {% if perms.erp.view_sale %}
+                                <li><a href="{{ accounts_receivable_list_url|default:'/erp/accounts-receivable/list/' }}" class="dropdown-item"><i class="fas fa-hand-holding-usd"></i> Cuentas por cobrar</a></li>
                             {% endif %}
                             {% if perms.erp.view_taxrate %}
                                 <li><a href="{{ taxrate_list_url|default:'/erp/tax-rate/list/' }}" class="dropdown-item"><i class="fas fa-percent"></i> Tasas de impuesto</a></li>
