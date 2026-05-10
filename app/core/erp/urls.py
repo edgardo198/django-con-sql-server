@@ -2,6 +2,11 @@ from django.urls import path
 
 from app.core.erp.views.cashmovement.views import CashMovementCreateView, CashMovementDeleteView, CashMovementListView
 from app.core.erp.views.cashsession.views import CashSessionCloseView, CashSessionCreateView, CashSessionListView
+from app.core.erp.views.accountsreceivable.views import (
+    AccountsReceivableDetailView,
+    AccountsReceivableListView,
+    AccountsReceivablePaymentView,
+)
 from app.core.erp.views.category.views import CategoryCreateView, CategoryDeleteView, CategoryListView, CategoryUpdateView
 from app.core.erp.views.client.views import ClientCreateView, ClientDeleteView, ClientListView, ClientUpdateView
 from app.core.erp.views.dashboard.views import DashboardView
@@ -71,6 +76,10 @@ urlpatterns = [
     path('cash-movement/list/', CashMovementListView.as_view(), name='cashmovement_list'),
     path('cash-movement/add/', CashMovementCreateView.as_view(), name='cashmovement_create'),
     path('cash-movement/delete/<int:pk>/', CashMovementDeleteView.as_view(), name='cashmovement_delete'),
+
+    path('accounts-receivable/list/', AccountsReceivableListView.as_view(), name='accounts_receivable_list'),
+    path('accounts-receivable/detail/<int:pk>/', AccountsReceivableDetailView.as_view(), name='accounts_receivable_detail'),
+    path('accounts-receivable/payment/<int:pk>/', AccountsReceivablePaymentView.as_view(), name='accounts_receivable_payment'),
 
     path('inventory-movement/list/', InventoryMovementListView.as_view(), name='inventorymovement_list'),
 

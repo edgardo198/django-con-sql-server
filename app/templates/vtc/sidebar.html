@@ -27,6 +27,10 @@
 {% if not cashmovement_list_url %}
     {% url 'cashmovement_list' as cashmovement_list_url %}
 {% endif %}
+{% url 'erp:accounts_receivable_list' as accounts_receivable_list_url %}
+{% if not accounts_receivable_list_url %}
+    {% url 'accounts_receivable_list' as accounts_receivable_list_url %}
+{% endif %}
 {% url 'erp:inventorymovement_list' as inventorymovement_list_url %}
 {% if not inventorymovement_list_url %}
     {% url 'inventorymovement_list' as inventorymovement_list_url %}
@@ -148,6 +152,14 @@
                         <a href="{{ cashmovement_list_url|default:'/erp/cash-movement/list/' }}" class="nav-link">
                             <i class="nav-icon fas fa-money-bill-wave"></i>
                             <p>Movimientos de caja</p>
+                        </a>
+                    </li>
+                {% endif %}
+                {% if perms.erp.view_sale %}
+                    <li class="nav-item">
+                        <a href="{{ accounts_receivable_list_url|default:'/erp/accounts-receivable/list/' }}" class="nav-link">
+                            <i class="nav-icon fas fa-hand-holding-usd"></i>
+                            <p>Cuentas por cobrar</p>
                         </a>
                     </li>
                 {% endif %}

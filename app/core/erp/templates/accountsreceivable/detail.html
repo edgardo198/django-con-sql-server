@@ -1,0 +1,97 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+    <div class="card card-dark">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-file-invoice-dollar"></i>
+                {{ title }}
+            </h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Cliente</h5>
+                    <p class="mb-1"><strong>{{ sale.cli.get_full_name }}</strong></p>
+                    <p class="mb-1">Telefono: {{ sale.cli.phone|default:'N/D' }}</p>
+                    <p class="mb-1">Credito autorizado: L {{ sale.cli.credit_limit|floatformat:2 }}</p>
+                </div>
+                <div class="col-md-6">
+                    <h5>Documento</h5>
+                    <p class="mb-1">Venta N. {{ sale.id }}{% if sale.number %} - {{ sale.number }}{% endif %}</p>
+                    <p class="mb-1">Fecha: {{ sale.date_joined|date:'Y-m-d' }}</p>
+                    <p class="mb-1">Vence: {{ sale.due_date|date:'Y-m-d'|default:'Sin fecha' }}</p>
+                </div>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="info-box">
+                        <span class="info-box-icon bg-secondary"><i class="fas fa-file-invoice"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Total</span>
+                            <span class="info-box-number">L {{ sale.total|floatformat:2 }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="info-box">
+                        <span class="info-box-icon bg-success"><i class="fas fa-check"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Pagado</span>
+                            <span class="info-box-number">L {{ sale.amount_paid|floatformat:2 }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="info-box">
+                        <span class="info-box-icon bg-info"><i class="fas fa-hand-holding-usd"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Saldo</span>
+                            <span class="info-box-number">L {{ sale.balance|floatformat:2 }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <h5>Historial de abonos</h5>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm">
+                    <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Metodo</th>
+                        <th>Referencia</th>
+                        <th>Caja</th>
+                        <th>Notas</th>
+                        <th>Monto</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for payment in payments %}
+                        <tr>
+                            <td>{{ payment.paid_at|date:'Y-m-d H:i' }}</td>
+                            <td>{{ payment.get_method_display }}</td>
+                            <td>{{ payment.reference|default:'N/D' }}</td>
+                            <td>{{ payment.cash_session|default:'N/D' }}</td>
+                            <td>{{ payment.notes|default:'N/D' }}</td>
+                            <td>L {{ payment.amount|floatformat:2 }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="6" class="text-center">No hay abonos registrados.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer">
+            {% if can_add_payment %}
+                <a href="{{ payment_url }}" class="btn btn-success btn-flat">
+                    <i class="fas fa-dollar-sign"></i> Registrar abono
+                </a>
+            {% endif %}
+            <a href="{{ list_url }}" class="btn btn-danger btn-flat">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+{% endblock %}

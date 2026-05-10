@@ -1,0 +1,23 @@
+{% extends 'form.html' %}
+
+{% block head_form %}
+    <style>
+        .payment-summary {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 16px;
+            background: #f8f9fa;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="payment-summary">
+        <strong>Venta N. {{ sale.id }}</strong> - {{ sale.cli.get_full_name }}<br>
+        Total: L {{ sale.total|floatformat:2 }} |
+        Pagado: L {{ sale.amount_paid|floatformat:2 }} |
+        Saldo: <strong>L {{ sale.balance|floatformat:2 }}</strong>
+    </div>
+    {{ block.super }}
+{% endblock %}

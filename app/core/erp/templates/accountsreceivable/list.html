@@ -1,0 +1,172 @@
+{% extends 'list.html' %}
+
+{% block search_filters %}
+    <form method="get" class="mb-3">
+        <div class="row">
+            <div class="col-lg-4 col-md-6">
+                <div class="form-group">
+                    <label>Cliente:</label>
+                    <select name="client" class="form-control">
+                        <option value="">Todos</option>
+                        {% for client in clients %}
+                            <option value="{{ client.id }}" {% if selected_client == client.id|stringformat:'s' %}selected{% endif %}>
+                                {{ client.get_full_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="form-group">
+                    <label>Vencimiento:</label>
+                    <select name="aging" class="form-control">
+                        <option value="">Todos</option>
+                        <option value="overdue" {% if selected_aging == 'overdue' %}selected{% endif %}>Vencidas</option>
+                        <option value="due_today" {% if selected_aging == 'due_today' %}selected{% endif %}>Vencen hoy</option>
+                        <option value="open" {% if selected_aging == 'open' %}selected{% endif %}>No vencidas</option>
+                        <option value="no_due_date" {% if selected_aging == 'no_due_date' %}selected{% endif %}>Sin vencimiento</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-lg-5 col-md-12 d-flex align-items-end mb-3">
+                <button type="submit" class="btn btn-primary btn-flat mr-2">
+                    <i class="fas fa-filter"></i> Filtrar
+                </button>
+                <a href="{{ list_url }}" class="btn btn-secondary btn-flat">
+                    <i class="fas fa-times"></i> Limpiar
+                </a>
+            </div>
+        </div>
+    </form>
+    <div class="row">
+        <div class="col-lg-3 col-md-6">
+            <div class="small-box bg-info">
+                <div class="inner">
+                    <h4>L {{ totals.total_balance|floatformat:2 }}</h4>
+                    <p>Saldo pendiente</p>
+                </div>
+                <div class="icon"><i class="fas fa-hand-holding-usd"></i></div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="small-box bg-success">
+                <div class="inner">
+                    <h4>L {{ totals.total_paid|floatformat:2 }}</h4>
+                    <p>Pagado</p>
+                </div>
+                <div class="icon"><i class="fas fa-check-circle"></i></div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="small-box bg-warning">
+                <div class="inner">
+                    <h4>{{ totals.invoices }}</h4>
+                    <p>Documentos abiertos</p>
+                </div>
+                <div class="icon"><i class="fas fa-file-invoice-dollar"></i></div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="small-box bg-secondary">
+                <div class="inner">
+                    <h4>{{ customer_summary|length }}</h4>
+                    <p>Clientes con saldo</p>
+                </div>
+                <div class="icon"><i class="fas fa-users"></i></div>
+            </div>
+        </div>
+    </div>
+    <div class="card card-outline card-info">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-users"></i> Resumen por cliente</h3>
+        </div>
+        <div class="card-body table-responsive p-0">
+            <table class="table table-sm table-striped">
+                <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Telefono</th>
+                    <th>Facturas</th>
+                    <th>Vencimiento mas antiguo</th>
+                    <th>Limite</th>
+                    <th>Saldo</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in customer_summary %}
+                    <tr>
+                        <td>{{ row.cli__names }} {{ row.cli__surnames }}</td>
+                        <td>{{ row.cli__phone|default:'N/D' }}</td>
+                        <td>{{ row.invoices }}</td>
+                        <td>{{ row.oldest_due_date|date:'Y-m-d'|default:'Sin fecha' }}</td>
+                        <td>L {{ row.cli__credit_limit|floatformat:2 }}</td>
+                        <td><strong>L {{ row.total_balance|floatformat:2 }}</strong></td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="text-center">No hay saldos pendientes.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}
+
+{% block columns %}
+    <tr>
+        <th>Nro</th>
+        <th>Cliente</th>
+        <th>Fecha</th>
+        <th>Vence</th>
+        <th>Documento</th>
+        <th>Condicion</th>
+        <th>Total</th>
+        <th>Pagado</th>
+        <th>Saldo</th>
+        <th>Estado</th>
+        <th>Opciones</th>
+    </tr>
+{% endblock %}
+
+{% block rows %}
+    {% for sale in object_list %}
+        <tr>
+            <td>{{ sale.id }}</td>
+            <td>{{ sale.cli.get_full_name }}</td>
+            <td>{{ sale.date_joined|date:'Y-m-d' }}</td>
+            <td>
+                {% if sale.due_date %}
+                    {{ sale.due_date|date:'Y-m-d' }}
+                    {% if sale.due_date < today %}
+                        <span class="badge badge-danger">Vencida</span>
+                    {% elif sale.due_date == today %}
+                        <span class="badge badge-warning">Hoy</span>
+                    {% endif %}
+                {% else %}
+                    Sin fecha
+                {% endif %}
+            </td>
+            <td>{{ sale.get_document_type_display }}{% if sale.number %}<br><small>{{ sale.number }}</small>{% endif %}</td>
+            <td>{{ sale.get_payment_term_display }}</td>
+            <td>L {{ sale.total|floatformat:2 }}</td>
+            <td>L {{ sale.amount_paid|floatformat:2 }}</td>
+            <td><strong>L {{ sale.balance|floatformat:2 }}</strong></td>
+            <td><span class="badge badge-success">{{ sale.get_status_display }}</span></td>
+            <td class="text-center">
+                <a href="{% url 'erp:accounts_receivable_detail' sale.id %}" class="btn btn-info btn-xs btn-flat">
+                    <i class="fas fa-eye"></i>
+                </a>
+                {% if can_add_payment %}
+                    <a href="{% url 'erp:accounts_receivable_payment' sale.id %}" class="btn btn-success btn-xs btn-flat">
+                        <i class="fas fa-dollar-sign"></i>
+                    </a>
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+{% endblock %}
+
+{% block buttons_list %}
+    <a href="{{ list_url }}" class="btn btn-success btn-flat">
+        <i class="fas fa-sync"></i> Actualizar
+    </a>
+{% endblock %}

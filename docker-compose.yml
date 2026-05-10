@@ -1,0 +1,25 @@
+services:
+  web:
+    build: .
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      PORT: 8000
+      DJANGO_ENV: development
+      DJANGO_DEBUG: "true"
+      DJANGO_SECRET_KEY: dev-only-change-me
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:8000,http://127.0.0.1:8000
+      DJANGO_DB_ENGINE: sqlite
+      SQLITE_NAME: /app/data/db.sqlite3
+      DATABASE_URL: ""
+      SUPERADMIN_USERNAME: superadmin
+      SUPERADMIN_EMAIL: superadmin@example.com
+      SUPERADMIN_PASSWORD: admin12345
+    volumes:
+      - django_data:/app/data
+      - django_media:/app/media
+
+volumes:
+  django_data:
+  django_media:

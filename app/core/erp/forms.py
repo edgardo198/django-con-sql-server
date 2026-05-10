@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from django import forms
-from django.forms import DateInput, HiddenInput, ModelForm, NumberInput, Select, TextInput, Textarea
+from django.forms import DateInput, DateTimeInput, HiddenInput, ModelForm, NumberInput, Select, TextInput, Textarea
 
 from app.core.erp.models import (
     CashMovement,
@@ -12,6 +12,7 @@ from app.core.erp.models import (
     Product,
     Purchase,
     Sale,
+    SalePayment,
     Supplier,
     TaxRate,
 )
@@ -429,4 +430,63 @@ class PurchaseForm(RequestModelForm):
     def prepare_instance(self, instance):
         instance.tax_total = instance.tax_total or instance.iva
         instance.iva = instance.tax_total or instance.iva
+        return instance
+
+
+class SalePaymentForm(RequestModelForm):
+    class Meta:
+        model = SalePayment
+        fields = ('cash_session', 'method', 'amount', 'reference', 'notes', 'paid_at')
+        widgets = {
+            'cash_session': Select(),
+            'method': Select(),
+            'amount': NumberInput(attrs={'step': '0.01', 'min': '0.01', 'autofocus': True}),
+            'reference': TextInput(attrs={'placeholder': 'Numero de recibo, transferencia o referencia'}),
+            'notes': Textarea(attrs={'rows': 2, 'placeholder': 'Observacion del abono'}),
+            'paid_at': DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.sale = kwargs.pop('sale', None)
+        super().__init__(*args, **kwargs)
+        if not self.is_bound:
+            self.fields['paid_at'].initial = datetime.now().strftime('%Y-%m-%dT%H:%M')
+        organization = self.get_current_organization()
+        if organization:
+            self.fields['cash_session'].queryset = CashSession.objects.filter(
+                organization=organization,
+                status='open',
+            ).order_by('-opened_at')
+        self.fields['cash_session'].required = False
+        self.fields['paid_at'].input_formats = ['%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d']
+
+    def clean_amount(self):
+        amount = self.cleaned_data['amount']
+        if amount <= 0:
+            raise forms.ValidationError('El monto del abono debe ser mayor que cero.')
+        if self.sale and amount > self.sale.balance:
+            raise forms.ValidationError('El abono no puede ser mayor que el saldo pendiente.')
+        return amount
+
+    def clean(self):
+        cleaned = super().clean()
+        cash_session = cleaned.get('cash_session')
+        method = cleaned.get('method')
+        if method == 'cash' and not cash_session:
+            raise forms.ValidationError('Seleccione una caja abierta para registrar pagos en efectivo.')
+        return cleaned
+
+    def save_model(self, commit=True):
+        instance = super().save(commit=False)
+        current_user = self.request.user if self.request and self.request.user.is_authenticated else None
+        instance.sale = self.sale
+        instance.organization = self.sale.organization
+        if hasattr(instance, 'user_creation_id') and current_user and not instance.pk:
+            instance.user_creation = current_user
+        if hasattr(instance, 'user_updated_id') and current_user:
+            instance.user_updated = current_user
+        instance.full_clean()
+        if commit:
+            instance.save()
+            self.save_m2m()
         return instance

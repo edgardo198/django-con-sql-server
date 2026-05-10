@@ -1,0 +1,16 @@
+.git
+.idea
+.vscode
+__pycache__/
+*.py[cod]
+*.sqlite3
+db.sqlite3
+app/db.sqlite3
+venv/
+.env
+.env.*
+!/.env.example
+staticfiles/
+media/
+test-results/
+tools/
