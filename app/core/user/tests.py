@@ -102,6 +102,56 @@ class UserAccessAndBootstrapTests(TestCase):
             [self.organization.name],
         )
 
+    def test_user_edit_without_password_keeps_current_password(self):
+        request = self.factory.post('/user/update/')
+        request.user = self.super_admin
+        original_password = self.same_store_seller.password
+        form = UserForm(
+            data={
+                'first_name': 'Seller',
+                'last_name': 'Updated',
+                'email': self.same_store_seller.email,
+                'username': self.same_store_seller.username,
+                'password': '',
+                'groups': [self.groups[ROLE_SELLER].pk],
+                'organizations': [self.organization.pk],
+                'current_organization': self.organization.pk,
+            },
+            instance=self.same_store_seller,
+            request=request,
+        )
+
+        data = form.save()
+        self.same_store_seller.refresh_from_db()
+
+        self.assertEqual(data, {})
+        self.assertEqual(self.same_store_seller.password, original_password)
+        self.assertEqual(self.same_store_seller.last_name, 'Updated')
+
+    def test_user_edit_with_password_updates_password(self):
+        request = self.factory.post('/user/update/')
+        request.user = self.super_admin
+        form = UserForm(
+            data={
+                'first_name': self.same_store_seller.first_name,
+                'last_name': self.same_store_seller.last_name,
+                'email': self.same_store_seller.email,
+                'username': self.same_store_seller.username,
+                'password': 'NewStrongPass123!',
+                'groups': [self.groups[ROLE_SELLER].pk],
+                'organizations': [self.organization.pk],
+                'current_organization': self.organization.pk,
+            },
+            instance=self.same_store_seller,
+            request=request,
+        )
+
+        data = form.save()
+        self.same_store_seller.refresh_from_db()
+
+        self.assertEqual(data, {})
+        self.assertTrue(self.same_store_seller.check_password('NewStrongPass123!'))
+
     def test_store_admin_user_queryset_excludes_superadmins_and_other_stores(self):
         request = self.factory.get('/user/list/')
         request.user = self.store_admin

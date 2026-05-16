@@ -34,7 +34,7 @@ class OrganizationForm(ModelForm):
 
 class UserForm(ModelForm):
     password = forms.CharField(
-        label='Password',
+        label='Nueva password',
         required=False,
         widget=PasswordInput(
             attrs={
@@ -62,6 +62,10 @@ class UserForm(ModelForm):
         if self.instance and self.instance.pk:
             self.fields['password'].widget.attrs['placeholder'] = 'Deje vacio para mantener la password actual'
             self.fields['password'].widget.attrs['autocomplete'] = 'new-password'
+            self.fields['password'].help_text = (
+                'Por seguridad no se muestra la password actual. '
+                'Escriba una nueva solo si desea cambiarla.'
+            )
 
         if request_user:
             if request_user.is_superuser:
