@@ -275,6 +275,56 @@ $(function () {
         $(this).val(null).trigger('change');
     });
 
+    function normalizeProductForSale(data) {
+        data.cant = parseInt(data.cant || 1);
+        data.price = parseFloat(data.price || data.pvp || 0);
+        data.cost = parseFloat(data.cost || 0);
+        data.tax_rate = getTaxRate(data.tax_rate);
+        data.discount = parseFloat(data.discount || 0);
+        return data;
+    }
+
+    function scanBarcode() {
+        var $input = $('.sale-barcode-input');
+        var code = ($input.val() || '').trim();
+        if (!code) {
+            $input.trigger('focus');
+            return false;
+        }
+
+        $.ajax({
+            url: window.location.pathname,
+            type: 'POST',
+            data: {
+                action: 'scan_product',
+                code: code
+            },
+            dataType: 'json'
+        }).done(function (data) {
+            if (data.hasOwnProperty('error')) {
+                message_error(data.error);
+                $input.select();
+                return false;
+            }
+            saleDetail.add(normalizeProductForSale(data));
+            $input.val('').trigger('focus');
+        }).fail(function (jqXHR, textStatus, errorThrown) {
+            message_error(textStatus + ': ' + errorThrown);
+            $input.select();
+        });
+    }
+
+    $('.btnScanBarcode').on('click', function () {
+        scanBarcode();
+    });
+
+    $('.sale-barcode-input').on('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            scanBarcode();
+        }
+    });
+
     $('.btnRemoveAll').on('click', function () {
         if (saleDetail.items.products.length === 0) {
             return false;

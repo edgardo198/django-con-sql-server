@@ -298,7 +298,54 @@ class ERPDashboardAndReportsTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'sale-product-search')
+        self.assertContains(response, 'sale-barcode-input')
         self.assertContains(response, 'sale/js/form.js')
+
+    def test_sale_scan_product_finds_active_product_by_barcode(self):
+        self.product.barcode = '7501000000012'
+        self.product.internal_code = 'LECHE-001'
+        self.product.save(update_fields=['barcode', 'internal_code'])
+
+        response = self.client.post(
+            reverse('erp:sale_create'),
+            {'action': 'scan_product', 'code': '7501000000012'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['id'], self.product.id)
+        self.assertEqual(payload['text'], 'Leche')
+
+    def test_sale_scan_product_finds_active_product_by_internal_code(self):
+        self.product.internal_code = 'LECHE-INT-001'
+        self.product.save(update_fields=['internal_code'])
+
+        response = self.client.post(
+            reverse('erp:sale_create'),
+            {'action': 'scan_product', 'code': 'leche-int-001'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['id'], self.product.id)
+
+    def test_sale_scan_product_is_scoped_to_current_organization(self):
+        other_product = Product.objects.create(
+            organization=self.secondary_organization,
+            name='Producto otra tienda',
+            barcode='7501000000099',
+            cost=Decimal('10.00'),
+            pvp=Decimal('15.00'),
+            stock=5,
+        )
+
+        response = self.client.post(
+            reverse('erp:sale_create'),
+            {'action': 'scan_product', 'code': other_product.barcode},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('error', response.json())
 
     def test_sale_product_search_returns_first_active_products_without_term(self):
         inactive_product = Product.objects.create(
