@@ -1,5 +1,6 @@
 databases:
   - name: django-postgres-db
+    plan: free
     databaseName: django_postgres
     user: django_postgres
 
@@ -7,6 +8,7 @@ services:
   - type: web
     name: Tienda-desplege
     runtime: python
+    plan: free
     buildCommand: bash build.sh
     startCommand: bash start.sh
     envVars:
