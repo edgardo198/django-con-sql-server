@@ -170,6 +170,54 @@ $(function () {
         $(this).val(null).trigger('change');
     });
 
+    function normalizeProductForPurchase(data) {
+        data.cant = parseInt(data.cant || 1);
+        data.cost = parseFloat(data.cost || 0);
+        data.tax_rate = parseFloat(data.tax_rate || 0);
+        return data;
+    }
+
+    function scanBarcode() {
+        var $input = $('.purchase-barcode-input');
+        var code = ($input.val() || '').trim();
+        if (!code) {
+            $input.trigger('focus');
+            return false;
+        }
+
+        $.ajax({
+            url: window.location.pathname,
+            type: 'POST',
+            data: {
+                action: 'scan_product',
+                code: code
+            },
+            dataType: 'json'
+        }).done(function (data) {
+            if (data.hasOwnProperty('error')) {
+                message_error(data.error);
+                $input.select();
+                return false;
+            }
+            purchaseDetail.add(normalizeProductForPurchase(data));
+            $input.val('').trigger('focus');
+        }).fail(function (jqXHR, textStatus, errorThrown) {
+            message_error(textStatus + ': ' + errorThrown);
+            $input.select();
+        });
+    }
+
+    $('.btnScanBarcode').on('click', function () {
+        scanBarcode();
+    });
+
+    $('.purchase-barcode-input').on('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            scanBarcode();
+        }
+    });
+
     $('.btnRemoveAll').on('click', function () {
         if (purchaseDetail.items.products.length === 0) {
             return false;

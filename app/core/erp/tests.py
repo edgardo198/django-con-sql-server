@@ -981,6 +981,60 @@ class ERPDashboardAndReportsTests(TestCase):
             'Hay un producto sin identificador valido en el detalle.',
         )
 
+    def test_purchase_create_renders_product_search_and_barcode_scanner(self):
+        response = self.client.get(reverse('erp:purchase_create'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'purchase-product-search')
+        self.assertContains(response, 'purchase-barcode-input')
+        self.assertContains(response, 'purchase/js/form.js')
+
+    def test_purchase_scan_product_finds_active_product_by_barcode(self):
+        self.product.barcode = '7502000000012'
+        self.product.internal_code = 'COMPRA-001'
+        self.product.save(update_fields=['barcode', 'internal_code'])
+
+        response = self.client.post(
+            reverse('erp:purchase_create'),
+            {'action': 'scan_product', 'code': '7502000000012'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['id'], self.product.id)
+        self.assertEqual(payload['text'], 'Leche')
+
+    def test_purchase_scan_product_finds_active_product_by_internal_code(self):
+        self.product.internal_code = 'COMPRA-INT-001'
+        self.product.save(update_fields=['internal_code'])
+
+        response = self.client.post(
+            reverse('erp:purchase_create'),
+            {'action': 'scan_product', 'code': 'compra-int-001'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['id'], self.product.id)
+
+    def test_purchase_scan_product_is_scoped_to_current_organization(self):
+        other_product = Product.objects.create(
+            organization=self.secondary_organization,
+            name='Producto compra otra tienda',
+            barcode='7502000000099',
+            cost=Decimal('10.00'),
+            pvp=Decimal('15.00'),
+            stock=5,
+        )
+
+        response = self.client.post(
+            reverse('erp:purchase_create'),
+            {'action': 'scan_product', 'code': other_product.barcode},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('error', response.json())
+
     def test_purchase_product_search_is_scoped_and_accepts_flexible_terms(self):
         self.product.name = 'Leche Entera Premium 1 Litro'
         self.product.barcode = 'BAR-LECHE-001'

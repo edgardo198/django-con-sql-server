@@ -121,7 +121,7 @@ class PurchaseBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin
 
     def dispatch(self, request, *args, **kwargs):
         try:
-            if request.method == 'POST' and request.POST.get('action') == 'search_products' and request.user.is_authenticated:
+            if request.method == 'POST' and request.POST.get('action') in ('search_products', 'scan_product') and request.user.is_authenticated:
                 return View.dispatch(self, request, *args, **kwargs)
         except Exception:
             pass
@@ -139,6 +139,21 @@ class PurchaseBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin
             item['text'] = product.name
             data.append(item)
         return data
+
+    def scan_product_by_code(self, code):
+        code = (code or '').strip()
+        if not code:
+            raise Exception('Ingrese o escanee un codigo de barras.')
+
+        product = self.get_product_queryset().filter(
+            models.Q(barcode__iexact=code) | models.Q(internal_code__iexact=code)
+        ).first()
+        if product is None:
+            raise Exception('No se encontro un producto activo con ese codigo.')
+
+        item = product.toJSON()
+        item['text'] = product.name
+        return item
 
     def reset_totals(self, purchase):
         purchase.subtotal = Decimal('0.00')
@@ -257,6 +272,8 @@ class PurchaseBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin
             action = request.POST.get('action')
             if action == 'search_products':
                 data = self.search_products(request.POST.get('term') or request.POST.get('q') or '')
+            elif action == 'scan_product':
+                data = self.scan_product_by_code(request.POST.get('code') or request.POST.get('term') or request.POST.get('q') or '')
             elif action in ('add', 'edit'):
                 payload = json.loads(request.POST['purchase'])
                 self.save_purchase_from_payload(payload)
