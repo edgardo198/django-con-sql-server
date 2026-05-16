@@ -199,6 +199,44 @@ COMPANIES = [
         'purchase': {'supplier': 'Agroquimicos del Istmo', 'number': 'AGR-COMP-001', 'invoice': 'AGI-33440', 'items': [('AGR-0001', 8, '900.00'), ('AGR-0003', 6, '275.00')]},
         'sale': {'client_dni': '0801198605001', 'number': 'AGR-VTA-001', 'items': [('AGR-0001', 2, '1280.00'), ('AGR-0003', 1, '410.00')]},
     },
+    {
+        'name': 'TecnoCentro Honduras',
+        'code': 'TEC-HND',
+        'rtn': '08011999010006',
+        'phone': '2234-1501',
+        'email': 'ventas@tecnocentrohn.test',
+        'address': 'Centro Comercial Los Proceres, Tegucigalpa',
+        'business_name': 'Soluciones Tecnologicas Centro S.A.',
+        'trade_name': 'TecnoCentro Honduras',
+        'invoice_prefix': '006-001-01-',
+        'categories': [
+            ('Computadoras y laptops', 'Equipos portatiles y de escritorio para oficina y hogar'),
+            ('Celulares y tablets', 'Telefonos inteligentes, tablets y accesorios moviles'),
+            ('Accesorios tecnologia', 'Perifericos, cables, audifonos y componentes'),
+            ('Servicios tecnicos', 'Diagnostico, mantenimiento e instalacion de software'),
+        ],
+        'taxes': [('ISV 15', 'ISV15', '15.00', True)],
+        'suppliers': [
+            ('Importadora Digital Maya', '08011999025001', 'Luis Fernandez', '2234-2501', 'ventas@digitalmaya.test', 'Zona Libre, Puerto Cortes'),
+            ('CompuPartes San Pedro', '08011999025002', 'Natalia Cruz', '2234-2502', 'pedidos@compupartes.test', 'Barrio Guamilito, San Pedro Sula'),
+        ],
+        'clients': [
+            ('Gabriela', 'Pineda', '0801199106001', '08011999035001', '9488-6001', 'gabriela.pineda@example.test', 'Colonia Lomas del Guijarro'),
+            ('Consultores', 'Nexus', '0801199106002', '08011999035002', '9488-6002', 'compras@nexus.test', 'Edificio Corporativo Centroamerica'),
+        ],
+        'products': [
+            ('Laptop Lenovo ThinkPad E14 i5 16GB 512GB', 'Computadoras y laptops', 'TEC-0001', 'LAP-LEN-E14-I5', 'Laptop empresarial con SSD NVMe y Windows Pro', 'unidad', '14850.00', '18990.00', 9, 2, 'ISV15'),
+            ('Monitor Samsung 24 pulgadas FHD', 'Computadoras y laptops', 'TEC-0002', 'MON-SAM-24FHD', 'Monitor LED Full HD para oficina y gaming casual', 'unidad', '2380.00', '3295.00', 15, 4, 'ISV15'),
+            ('Smartphone Samsung Galaxy A35 5G 256GB', 'Celulares y tablets', 'TEC-0003', 'CEL-SAM-A35-256', 'Telefono 5G con pantalla AMOLED y 256GB de almacenamiento', 'unidad', '8650.00', '11295.00', 12, 3, 'ISV15'),
+            ('Tablet Xiaomi Pad SE 11 pulgadas', 'Celulares y tablets', 'TEC-0004', 'TAB-XIA-PADSE', 'Tablet Android para estudio, entretenimiento y trabajo ligero', 'unidad', '4150.00', '5795.00', 10, 2, 'ISV15'),
+            ('Mouse Logitech M185 inalambrico', 'Accesorios tecnologia', 'TEC-0005', 'ACC-LOG-M185', 'Mouse inalambrico USB para uso diario', 'unidad', '245.00', '395.00', 45, 10, 'ISV15'),
+            ('Cable HDMI 2.0 de 2 metros', 'Accesorios tecnologia', 'TEC-0006', 'ACC-HDMI-2M', 'Cable HDMI de alta velocidad para video Full HD y 4K', 'unidad', '95.00', '165.00', 70, 15, 'ISV15'),
+            ('Mantenimiento preventivo de laptop', 'Servicios tecnicos', 'TEC-0007', 'SRV-MAN-LAP', 'Limpieza interna, revision termica y optimizacion basica', 'unidad', '0.00', '650.00', 0, 0, 'ISV15'),
+        ],
+        'services': ['TEC-0007'],
+        'purchase': {'supplier': 'Importadora Digital Maya', 'number': 'TEC-COMP-001', 'invoice': 'IDM-77821', 'items': [('TEC-0001', 3, '14400.00'), ('TEC-0003', 4, '8350.00'), ('TEC-0005', 20, '230.00')]},
+        'sale': {'client_dni': '0801199106001', 'number': 'TEC-VTA-001', 'items': [('TEC-0003', 1, '11295.00'), ('TEC-0005', 1, '395.00'), ('TEC-0007', 1, '650.00')]},
+    },
 ]
 
 

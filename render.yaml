@@ -5,7 +5,7 @@ databases:
 
 services:
   - type: web
-    name: django-postgres
+    name: Tienda-desplege
     runtime: python
     buildCommand: bash build.sh
     startCommand: bash start.sh
