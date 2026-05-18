@@ -1,6 +1,9 @@
 import io
+import os
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
 from django.core.management import call_command
 from django.test import Client as DjangoClient, RequestFactory, TestCase
 from django.urls import reverse
@@ -13,7 +16,8 @@ from app.core.user.access import (
     ensure_role_groups,
 )
 from app.core.user.forms import UserForm
-from app.core.user.models import Organization
+from app.core.user.models import Organization, StoredMediaFile
+from app.core.user.storage import DatabaseMediaStorage
 from app.core.user.views import UserListView
 
 
@@ -273,3 +277,73 @@ class UserAccessAndBootstrapTests(TestCase):
         self.assertTrue(user.is_superuser)
         self.assertTrue(user.is_staff)
         self.assertTrue(user.groups.filter(name=ROLE_SUPER_ADMIN).exists())
+
+
+class DatabaseMediaStorageTests(TestCase):
+    def setUp(self):
+        self.storage = DatabaseMediaStorage()
+        self.user_model = get_user_model()
+
+    def image_bytes(self):
+        image_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'imagen.png')
+        with open(image_path, 'rb') as image_file:
+            return image_file.read()
+
+    def patch_image_storage(self, *model_fields):
+        storage = self.storage
+
+        class StoragePatch:
+            def __enter__(self_inner):
+                self_inner.originals = []
+                for model, field_name in model_fields:
+                    field = model._meta.get_field(field_name)
+                    self_inner.originals.append((field, field.storage))
+                    field.storage = storage
+                return storage
+
+            def __exit__(self_inner, exc_type, exc, tb):
+                for field, original_storage in self_inner.originals:
+                    field.storage = original_storage
+
+        return StoragePatch()
+
+    def test_database_media_storage_serves_exact_and_prefixed_media_paths(self):
+        image_data = self.image_bytes()
+        saved_name = self.storage.save('product/test-image.jpg', ContentFile(image_data))
+
+        stored_file = StoredMediaFile.objects.get(name=saved_name)
+        self.assertEqual(stored_file.size, len(image_data))
+
+        for url in (self.storage.url(saved_name), '/media/media/{}'.format(saved_name)):
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.content, image_data)
+            self.assertEqual(response['Content-Type'], 'image/jpeg')
+            self.assertEqual(response['Cache-Control'], 'no-store, max-age=0')
+
+    def test_missing_image_media_path_returns_placeholder_instead_of_404(self):
+        response = self.client.get('/media/product/missing-image.jpg')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'image/jpeg')
+
+    def test_user_and_organization_images_use_database_storage_urls(self):
+        image_data = self.image_bytes()
+
+        with self.patch_image_storage((Organization, 'image'), (self.user_model, 'image')):
+            organization = Organization.objects.create(name='Media Store', code='MEDIA')
+            organization.image.save('logo.jpg', ContentFile(image_data), save=True)
+
+            user = self.user_model.objects.create_user(username='mediauser', password='StrongPass123!')
+            user.image.save('avatar.jpg', ContentFile(image_data), save=True)
+
+            organization_image = organization.toJSON()['image']
+            user_image = user.toJSON()['image']
+
+        self.assertTrue(organization_image.startswith('/media/organization/'))
+        self.assertTrue(user_image.startswith('/media/users/'))
+        self.assertTrue(StoredMediaFile.objects.filter(name=organization.image.name).exists())
+        self.assertTrue(StoredMediaFile.objects.filter(name=user.image.name).exists())
+        self.assertEqual(self.client.get(organization_image).status_code, 200)
+        self.assertEqual(self.client.get(user_image).status_code, 200)

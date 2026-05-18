@@ -1,10 +1,13 @@
 import calendar
 import io
 import json
+import os
 from datetime import timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.template.loader import get_template
 from django.test import Client as DjangoClient, RequestFactory, TestCase
@@ -28,7 +31,8 @@ from app.core.erp.models import (
 )
 from app.core.erp.views.dashboard.views import DashboardView
 from app.core.user.access import ROLE_STORE_ADMIN
-from app.core.user.models import Organization
+from app.core.user.models import Organization, StoredMediaFile
+from app.core.user.storage import DatabaseMediaStorage
 
 
 class ERPDashboardAndReportsTests(TestCase):
@@ -124,6 +128,57 @@ class ERPDashboardAndReportsTests(TestCase):
         bootstrap = json.loads(response.context['dashboard_bootstrap'])
         self.assertIn('initial_overview', bootstrap)
         self.assertEqual(bootstrap['initial_overview']['filters']['selected_month'], timezone.localdate().month)
+
+    def test_product_upload_is_persisted_in_database_storage_and_served(self):
+        image_field = Product._meta.get_field('image')
+        original_storage = image_field.storage
+        image_field.storage = DatabaseMediaStorage()
+        image_path = os.path.join(settings.BASE_DIR, 'static', 'img', 'imagen.png')
+
+        try:
+            with open(image_path, 'rb') as image_file:
+                upload = SimpleUploadedFile(
+                    'product-upload.jpg',
+                    image_file.read(),
+                    content_type='image/jpeg',
+                )
+
+            response = self.client.post(
+                reverse('erp:product_create'),
+                {
+                    'action': 'add',
+                    'name': 'Cafe con foto',
+                    'category': self.category.pk,
+                    'cat': self.category.pk,
+                    'image': upload,
+                    'barcode': 'IMG-001',
+                    'internal_code': 'IMG-001',
+                    'description': 'Producto con imagen',
+                    'unit': 'unidad',
+                    'cost': '12.00',
+                    'pvp': '20.00',
+                    'stock': '5',
+                    'min_stock': '1',
+                    'allow_decimal_qty': '',
+                    'is_service': '',
+                    'is_active': 'on',
+                },
+            )
+        finally:
+            image_field.storage = original_storage
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertNotIn('error', payload)
+
+        product = Product.objects.get(name='Cafe con foto')
+        self.assertTrue(product.image.name.startswith('product/'))
+        self.assertTrue(StoredMediaFile.objects.filter(name=product.image.name).exists())
+        self.assertEqual(payload['image'], '/media/{}'.format(product.image.name))
+
+        image_response = self.client.get(payload['image'])
+        self.assertEqual(image_response.status_code, 200)
+        self.assertEqual(image_response['Content-Type'], 'image/jpeg')
 
     def test_dashboard_overview_filters_by_current_organization(self):
         response = self.client.post(

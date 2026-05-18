@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dashboard-cache-v2';
+const CACHE_NAME = 'dashboard-cache-v3';
 const STATIC_ASSETS = [
     '/static/dashboard/js/dashboard.js',
     '/static/dashboard/js/offline-storage.js',

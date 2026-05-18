@@ -28,7 +28,7 @@ class Organization(BaseModel):
 
     def get_image(self):
         if self.image:
-            return '{}{}'.format(settings.MEDIA_URL, self.image)
+            return self.image.url
         return '{}{}'.format(settings.STATIC_URL, 'img/logo.png')
 
     def toJSON(self):
@@ -84,7 +84,7 @@ class User(AbstractUser):
 
     def get_image(self):
         if self.image:
-            return '{}{}'.format(settings.MEDIA_URL, self.image)
+            return self.image.url
         return '{}{}'.format(settings.STATIC_URL, 'img/imagen.png')
 
     def get_accessible_organizations(self):

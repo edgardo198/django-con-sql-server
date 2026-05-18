@@ -13,8 +13,18 @@ from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET
 
 
+def _content_type_for_file(file_path, default='application/octet-stream'):
+    try:
+        from PIL import Image
+
+        with Image.open(file_path) as image:
+            return Image.MIME.get(image.format, default)
+    except Exception:
+        return mimetypes.guess_type(file_path)[0] or default
+
+
 def _safe_media_path(path):
-    cleaned = str(PurePosixPath(path)).lstrip('/')
+    cleaned = str(PurePosixPath(str(path).replace('\\', '/'))).lstrip('/')
     parts = PurePosixPath(cleaned).parts
     if not cleaned or '..' in parts:
         raise Http404('Archivo no encontrado')
@@ -43,7 +53,7 @@ def _fallback_image_response(path):
     if content_type and content_type.startswith('image/'):
         fallback_path = finders.find('img/imagen.png')
         if fallback_path and os.path.exists(fallback_path):
-            return FileResponse(open(fallback_path, 'rb'), content_type='image/png')
+            return FileResponse(open(fallback_path, 'rb'), content_type=_content_type_for_file(fallback_path))
     raise Http404('Archivo no encontrado')
 
 
@@ -61,7 +71,7 @@ def serve_media(request, path):
 
     if stored_file is not None:
         content_type = stored_file.content_type or mimetypes.guess_type(safe_path)[0]
-        response = HttpResponse(bytes(stored_file.content), content_type=content_type)
+        response = HttpResponse(bytes(stored_file.content), content_type=content_type or 'application/octet-stream')
         response['Content-Length'] = stored_file.size
         response['Cache-Control'] = 'no-store, max-age=0'
         return response
@@ -69,13 +79,19 @@ def serve_media(request, path):
     filesystem_storage = FileSystemStorage(location=settings.MEDIA_ROOT, base_url=settings.MEDIA_URL)
     for candidate_path in candidate_paths:
         for storage in (default_storage, filesystem_storage):
-            if storage.exists(candidate_path):
-                content_type, encoding = mimetypes.guess_type(candidate_path)
-                response = FileResponse(storage.open(candidate_path, 'rb'), content_type=content_type)
-                if encoding:
-                    response['Content-Encoding'] = encoding
-                response['Cache-Control'] = 'no-store, max-age=0'
-                return response
+            try:
+                if storage.exists(candidate_path):
+                    content_type, encoding = mimetypes.guess_type(candidate_path)
+                    response = FileResponse(
+                        storage.open(candidate_path, 'rb'),
+                        content_type=content_type or 'application/octet-stream',
+                    )
+                    if encoding:
+                        response['Content-Encoding'] = encoding
+                    response['Cache-Control'] = 'no-store, max-age=0'
+                    return response
+            except (OperationalError, ProgrammingError, OSError, ValueError):
+                continue
 
     return _fallback_image_response(safe_path)
 

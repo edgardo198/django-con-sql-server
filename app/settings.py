@@ -157,7 +157,7 @@ LOGIN_URL = '/login/'
 
 MEDIA_ROOT = os.getenv('DJANGO_MEDIA_ROOT', os.path.join(BASE_DIR, 'media/'))
 MEDIA_URL = url_path(os.getenv('DJANGO_MEDIA_URL'), default='/media/')
-SERVE_MEDIA = env_bool('DJANGO_SERVE_MEDIA', default=DEBUG or bool(RENDER_EXTERNAL_HOSTNAME))
+SERVE_MEDIA = env_bool('DJANGO_SERVE_MEDIA', default=DEBUG or RUNNING_ON_RENDER or HAS_DATABASE_URL)
 
 AUTH_USER_MODEL = 'user.User'
 
