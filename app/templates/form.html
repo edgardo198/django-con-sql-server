@@ -86,6 +86,9 @@
 
         $('form').on('submit', function (e) {
             e.preventDefault();
+            if (typeof window.beforeFormAjaxSubmit === 'function' && window.beforeFormAjaxSubmit(this) === false) {
+                return false;
+            }
             var parameters = new FormData(this);
             submit_with_ajax(window.location.pathname, 'Notificacion', 'Estas seguro de realizar la siguiente accion?', parameters, function () {
                 location.href = '{{ list_url }}';

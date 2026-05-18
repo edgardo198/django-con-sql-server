@@ -178,6 +178,38 @@ class ProductForm(RequestModelForm):
                 cleaned[field_name] = None
         if not (cleaned.get('category') or cleaned.get('cat')):
             raise forms.ValidationError('Debe seleccionar una categoria para el producto.')
+
+        organization = self.get_current_organization() or getattr(self.instance, 'organization', None)
+        if organization:
+            duplicate_errors = {}
+            product_id = self.instance.pk
+
+            name = (cleaned.get('name') or '').strip()
+            if name:
+                queryset = Product.objects.filter(organization=organization, name__iexact=name)
+                if product_id:
+                    queryset = queryset.exclude(pk=product_id)
+                if queryset.exists():
+                    duplicate_errors['name'] = 'Ya existe un producto con ese nombre en la tienda activa.'
+
+            barcode = cleaned.get('barcode')
+            if barcode:
+                queryset = Product.objects.filter(organization=organization, barcode=barcode)
+                if product_id:
+                    queryset = queryset.exclude(pk=product_id)
+                if queryset.exists():
+                    duplicate_errors['barcode'] = 'Ya existe un producto con ese codigo de barras.'
+
+            internal_code = cleaned.get('internal_code')
+            if internal_code:
+                queryset = Product.objects.filter(organization=organization, internal_code=internal_code)
+                if product_id:
+                    queryset = queryset.exclude(pk=product_id)
+                if queryset.exists():
+                    duplicate_errors['internal_code'] = 'Ya existe un producto con ese codigo interno.'
+
+            if duplicate_errors:
+                raise forms.ValidationError(duplicate_errors)
         return cleaned
 
     def prepare_instance(self, instance):

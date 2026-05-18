@@ -8,6 +8,20 @@
 {% block extra_js %}
 <script>
     $(function () {
+        window.beforeFormAjaxSubmit = function () {
+            var category = $('#id_category').val();
+            if (!category) {
+                Swal.fire({
+                    title: 'Categoria requerida',
+                    text: 'Seleccione una categoria antes de guardar el producto.',
+                    icon: 'warning'
+                });
+                $('#id_category').focus();
+                return false;
+            }
+            return true;
+        };
+
         function validateBarcode() {
             var barcode = $('#id_barcode').val().trim();
             if (!barcode) {

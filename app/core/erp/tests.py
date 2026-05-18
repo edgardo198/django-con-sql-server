@@ -722,6 +722,68 @@ class ERPDashboardAndReportsTests(TestCase):
         self.assertIn('error', payload)
         self.assertFalse(Product.objects.filter(name='Producto sin categoria').exists())
 
+    def test_product_create_page_includes_category_warning(self):
+        response = self.client.get(reverse('erp:product_create'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Categoria requerida')
+        self.assertContains(response, 'Seleccione una categoria antes de guardar el producto.')
+
+    def test_product_create_rejects_duplicate_name_before_database_constraint(self):
+        response = self.client.post(
+            reverse('erp:product_create'),
+            {
+                'action': 'add',
+                'name': self.product.name,
+                'category': self.category.pk,
+                'cat': self.category.pk,
+                'barcode': 'DUP-NAME-001',
+                'internal_code': 'DUP-NAME-001',
+                'description': 'Duplicado',
+                'unit': 'unidad',
+                'cost': '10.00',
+                'pvp': '15.00',
+                'stock': '1',
+                'min_stock': '1',
+                'is_active': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn('error', payload)
+        self.assertIn('name', payload['error'])
+        self.assertEqual(Product.objects.filter(organization=self.organization, name=self.product.name).count(), 1)
+
+    def test_product_create_rejects_duplicate_internal_code_before_database_constraint(self):
+        self.product.internal_code = 'INT-DUP-001'
+        self.product.save(update_fields=['internal_code'])
+
+        response = self.client.post(
+            reverse('erp:product_create'),
+            {
+                'action': 'add',
+                'name': 'Producto con codigo repetido',
+                'category': self.category.pk,
+                'cat': self.category.pk,
+                'barcode': 'DUP-INT-001',
+                'internal_code': 'INT-DUP-001',
+                'description': 'Duplicado',
+                'unit': 'unidad',
+                'cost': '10.00',
+                'pvp': '15.00',
+                'stock': '1',
+                'min_stock': '1',
+                'is_active': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn('error', payload)
+        self.assertIn('internal_code', payload['error'])
+        self.assertFalse(Product.objects.filter(name='Producto con codigo repetido').exists())
+
     def test_product_json_uses_placeholder_when_image_url_fails(self):
         class BrokenStorage:
             def url(self, name):
