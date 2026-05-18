@@ -278,6 +278,27 @@ class UserAccessAndBootstrapTests(TestCase):
         self.assertTrue(user.is_staff)
         self.assertTrue(user.groups.filter(name=ROLE_SUPER_ADMIN).exists())
 
+    def test_user_without_store_reuses_existing_default_store(self):
+        user = self.user_model.objects.create_user(
+            username='nostore',
+            email='nostore@example.com',
+            password='StrongPass123!',
+        )
+        organization = Organization.objects.create(
+            name='Tienda Principal nostore',
+            code='',
+            is_active=False,
+        )
+
+        current_organization = user.get_current_organization()
+        organization.refresh_from_db()
+
+        self.assertEqual(current_organization, organization)
+        self.assertTrue(organization.is_active)
+        self.assertEqual(organization.code, 'STORE-{}'.format(user.pk))
+        self.assertTrue(user.organizations.filter(pk=organization.pk).exists())
+        self.assertEqual(user.current_organization, organization)
+
 
 class DatabaseMediaStorageTests(TestCase):
     def setUp(self):
@@ -347,3 +368,34 @@ class DatabaseMediaStorageTests(TestCase):
         self.assertTrue(StoredMediaFile.objects.filter(name=user.image.name).exists())
         self.assertEqual(self.client.get(organization_image).status_code, 200)
         self.assertEqual(self.client.get(user_image).status_code, 200)
+
+    def test_user_and_organization_images_use_placeholders_when_url_fails(self):
+        class BrokenStorage:
+            def url(self, name):
+                raise RuntimeError('storage url failed')
+
+        organization = Organization.objects.create(name='Broken Media Store', code='BROKEN')
+        organization.image.name = 'organization/broken-logo.jpg'
+        user = self.user_model.objects.create_user(username='brokenmedia', password='StrongPass123!')
+        user.image.name = 'users/broken-avatar.jpg'
+
+        organization_field = Organization._meta.get_field('image')
+        user_field = self.user_model._meta.get_field('image')
+        original_organization_storage = organization_field.storage
+        original_user_storage = user_field.storage
+        organization_field.storage = BrokenStorage()
+        user_field.storage = BrokenStorage()
+        try:
+            organization = Organization.objects.get(pk=organization.pk)
+            organization.image.name = 'organization/broken-logo.jpg'
+            user = self.user_model.objects.get(pk=user.pk)
+            user.image.name = 'users/broken-avatar.jpg'
+
+            organization_image = organization.get_image()
+            user_image = user.get_image()
+        finally:
+            organization_field.storage = original_organization_storage
+            user_field.storage = original_user_storage
+
+        self.assertEqual(organization_image, '{}{}'.format(settings.STATIC_URL, 'img/logo.png'))
+        self.assertEqual(user_image, '{}{}'.format(settings.STATIC_URL, 'img/imagen.png'))

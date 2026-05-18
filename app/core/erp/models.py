@@ -36,6 +36,13 @@ def format_money(value):
     return format(money(value), ".2f")
 
 
+def file_url_or_default(file_field, default):
+    try:
+        return file_field.url if file_field else default
+    except Exception:
+        return default
+
+
 identity_validator = RegexValidator(
     regex=r"^\d{13}$",
     message="La identidad hondureña debe contener 13 dígitos.",
@@ -371,7 +378,7 @@ class Product(AuditModel):
         # Exponer `cat` para compatibilidad; preferir `category` cuando exista
         cat_obj = self.category or self.cat
         item['cat'] = cat_obj.toJSON() if getattr(cat_obj, 'toJSON', None) else {'id': '', 'name': 'Sin categoria'}
-        item['image'] = self.image.url if self.image else '{}img/imagen.png'.format(settings.STATIC_URL)
+        item['image'] = file_url_or_default(self.image, '{}img/imagen.png'.format(settings.STATIC_URL))
         item['cost'] = format_money(self.cost)
         item['pvp'] = format_money(self.pvp)
         item['utility_unit'] = format_money(self.utility_unit)

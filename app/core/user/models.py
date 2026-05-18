@@ -13,6 +13,13 @@ from app.core.user.access import (
 )
 
 
+def file_url_or_default(file_field, default):
+    try:
+        return file_field.url if file_field else default
+    except Exception:
+        return default
+
+
 class Organization(BaseModel):
     name = models.CharField(max_length=150, unique=True, verbose_name='Nombre')
     code = models.CharField(max_length=30, blank=True, null=True, verbose_name='Codigo')
@@ -27,9 +34,7 @@ class Organization(BaseModel):
         return self.name
 
     def get_image(self):
-        if self.image:
-            return self.image.url
-        return '{}{}'.format(settings.STATIC_URL, 'img/logo.png')
+        return file_url_or_default(self.image, '{}{}'.format(settings.STATIC_URL, 'img/logo.png'))
 
     def toJSON(self):
         item = model_to_dict(
@@ -83,9 +88,7 @@ class User(AbstractUser):
     )
 
     def get_image(self):
-        if self.image:
-            return self.image.url
-        return '{}{}'.format(settings.STATIC_URL, 'img/imagen.png')
+        return file_url_or_default(self.image, '{}{}'.format(settings.STATIC_URL, 'img/imagen.png'))
 
     def get_accessible_organizations(self):
         queryset = Organization.objects.filter(is_active=True)
@@ -156,10 +159,21 @@ class User(AbstractUser):
                 self.save(update_fields=['current_organization'])
             return organization
 
-        organization = Organization.objects.create(
-            name='Tienda Principal {}'.format(self.username or self.pk),
-            code='STORE-{}'.format(self.pk),
+        default_name = 'Tienda Principal {}'.format(self.username or self.pk)
+        default_code = 'STORE-{}'.format(self.pk)
+        organization, _ = Organization.objects.get_or_create(
+            name=default_name,
+            defaults={'code': default_code},
         )
+        update_fields = []
+        if not organization.code:
+            organization.code = default_code
+            update_fields.append('code')
+        if not organization.is_active:
+            organization.is_active = True
+            update_fields.append('is_active')
+        if update_fields:
+            organization.save(update_fields=update_fields)
         self.organizations.add(organization)
         self.current_organization = organization
         self.save(update_fields=['current_organization'])

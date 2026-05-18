@@ -699,6 +699,23 @@ class ERPDashboardAndReportsTests(TestCase):
         payload = product.toJSON()
         self.assertEqual(payload['cat']['name'], 'Sin categoria')
 
+    def test_product_json_uses_placeholder_when_image_url_fails(self):
+        class BrokenStorage:
+            def url(self, name):
+                raise RuntimeError('storage url failed')
+
+        image_field = Product._meta.get_field('image')
+        original_storage = image_field.storage
+        image_field.storage = BrokenStorage()
+        try:
+            product = Product.objects.get(pk=self.product.pk)
+            product.image.name = 'product/broken-image.jpg'
+            payload = product.toJSON()
+        finally:
+            image_field.storage = original_storage
+
+        self.assertEqual(payload['image'], '{}img/imagen.png'.format(settings.STATIC_URL))
+
     def test_product_without_tax_rate_uses_default_15_percent(self):
         payload = self.product.toJSON()
         self.assertEqual(payload['tax_rate'], '15.00')
