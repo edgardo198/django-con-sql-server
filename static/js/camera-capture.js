@@ -16,6 +16,7 @@
             '.camera-capture-empty{color:#6c757d;font-size:14px;text-align:center;padding:28px 12px;background:#fff;width:100%;}' +
             '.camera-capture-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}' +
             '.camera-capture-status{font-size:12px;color:#6c757d;margin-top:8px;}' +
+            '.camera-capture-stop,.camera-capture-stop:disabled{background:#6c757d!important;border-color:#6c757d!important;color:#fff!important;opacity:1!important;}' +
             '</style>'
         );
     }
@@ -48,7 +49,7 @@
             '    <button type="button" class="btn btn-secondary btn-sm js-camera-open"><i class="fas fa-camera"></i> Abrir camara</button>' +
             '    <button type="button" class="btn btn-primary btn-sm js-camera-shot" disabled><i class="fas fa-circle"></i> Tomar foto</button>' +
             '    <button type="button" class="btn btn-info btn-sm js-camera-switch" style="display:none;"><i class="fas fa-sync-alt"></i> Cambiar camara</button>' +
-            '    <button type="button" class="btn btn-secondary btn-sm js-camera-stop" disabled><i class="fas fa-stop"></i> Detener</button>' +
+            '    <button type="button" class="btn btn-secondary btn-sm camera-capture-stop js-camera-stop" disabled><i class="fas fa-stop"></i> Detener</button>' +
             '  </div>' +
             '  <div class="camera-capture-status"></div>' +
             '  <canvas style="display:none;"></canvas>' +
