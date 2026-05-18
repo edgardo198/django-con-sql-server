@@ -25,13 +25,41 @@ def env_list(name, default=None):
     return [item.strip() for item in value.split(',') if item.strip()]
 
 
+def csrf_origin(value):
+    if '://' in value:
+        return value
+    return 'https://{}'.format(value)
+
+
+def url_path(value, default='/'):
+    value = (value or default).strip()
+    if '://' in value:
+        from urllib.parse import urlparse
+
+        value = urlparse(value).path or default
+    if not value.startswith('/'):
+        value = '/{}'.format(value)
+    if not value.endswith('/'):
+        value = '{}/'.format(value)
+    return value
+
+
 DEFAULT_SECRET_KEY = 'vc%m5g%w=dsntpj6k@ot!i9u1yv9jhq==1@=hdzz$v1-9!5b4d'
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', DEFAULT_SECRET_KEY)
+RENDER_EXTERNAL_HOSTNAME = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+RUNNING_ON_RENDER = bool(RENDER_EXTERNAL_HOSTNAME or os.getenv('RENDER'))
+HAS_DATABASE_URL = bool(os.getenv('DATABASE_URL'))
 
-DEBUG = env_bool('DJANGO_DEBUG', default=os.getenv('DJANGO_ENV', '').strip().lower() != 'production')
+DEBUG = env_bool(
+    'DJANGO_DEBUG',
+    default=not (
+        os.getenv('DJANGO_ENV', '').strip().lower() == 'production'
+        or RUNNING_ON_RENDER
+        or HAS_DATABASE_URL
+    ),
+)
 
 ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', default=['127.0.0.1', 'localhost', 'testserver'])
-RENDER_EXTERNAL_HOSTNAME = os.getenv('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
@@ -119,19 +147,28 @@ STATICFILES_STORAGE = os.getenv(
     'DJANGO_STATICFILES_STORAGE',
     'whitenoise.storage.CompressedStaticFilesStorage',
 )
+USE_DATABASE_MEDIA_STORAGE = env_bool('DJANGO_USE_DATABASE_MEDIA_STORAGE', default=RUNNING_ON_RENDER or HAS_DATABASE_URL)
+if USE_DATABASE_MEDIA_STORAGE:
+    DEFAULT_FILE_STORAGE = 'app.core.user.storage.DatabaseMediaStorage'
 
 LOGIN_REDIRECT_URL = '/erp/dashboard/'
 LOGOUT_REDIRECT_URL = '/login/'
 LOGIN_URL = '/login/'
 
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
-MEDIA_URL = '/media/'
+MEDIA_ROOT = os.getenv('DJANGO_MEDIA_ROOT', os.path.join(BASE_DIR, 'media/'))
+MEDIA_URL = url_path(os.getenv('DJANGO_MEDIA_URL'), default='/media/')
+SERVE_MEDIA = env_bool('DJANGO_SERVE_MEDIA', default=DEBUG or bool(RENDER_EXTERNAL_HOSTNAME))
 
 AUTH_USER_MODEL = 'user.User'
 
-CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS', default=[])
-if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in CSRF_TRUSTED_ORIGINS:
-    CSRF_TRUSTED_ORIGINS.append(RENDER_EXTERNAL_HOSTNAME)
+CSRF_TRUSTED_ORIGINS = [
+    csrf_origin(origin)
+    for origin in env_list('DJANGO_CSRF_TRUSTED_ORIGINS', default=[])
+]
+if RENDER_EXTERNAL_HOSTNAME:
+    render_csrf_origin = csrf_origin(RENDER_EXTERNAL_HOSTNAME)
+    if render_csrf_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(render_csrf_origin)
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False

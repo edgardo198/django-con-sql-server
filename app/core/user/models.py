@@ -46,6 +46,23 @@ class Organization(BaseModel):
         ordering = ['name']
 
 
+class StoredMediaFile(models.Model):
+    name = models.CharField(max_length=500, unique=True)
+    content = models.BinaryField()
+    content_type = models.CharField(max_length=100, blank=True)
+    size = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = 'Archivo multimedia'
+        verbose_name_plural = 'Archivos multimedia'
+        ordering = ['name']
+
+
 class User(AbstractUser):
     id = models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
     first_name = models.CharField('first name', max_length=150, blank=True)

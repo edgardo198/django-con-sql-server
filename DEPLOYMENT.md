@@ -2,7 +2,7 @@
 
 Este proyecto ya incluye los archivos necesarios para desplegar en Render:
 
-- `.python-version`: fija Python `3.8.18`, necesario para Django `3.0.1`.
+- `.python-version`: fija Python `3.8.18`, compatible con Django `4.1.13`.
 - `build.sh`: instala dependencias, recolecta estaticos y ejecuta `check --deploy`.
 - `start.sh`: aplica migraciones, crea/actualiza el super admin inicial y arranca Gunicorn.
 - `Procfile`: comando web compatible con plataformas tipo Render/Heroku.
@@ -35,6 +35,8 @@ DJANGO_DEBUG=false
 DJANGO_SECRET_KEY=<generar en Render>
 DJANGO_USE_PROXY_SSL_HEADER=true
 DJANGO_SECURE_SSL_REDIRECT=true
+DJANGO_SERVE_MEDIA=true
+DJANGO_USE_DATABASE_MEDIA_STORAGE=true
 DATABASE_URL=<Internal Database URL de Render PostgreSQL>
 SUPERADMIN_USERNAME=superadmin
 SUPERADMIN_EMAIL=superadmin@example.com
@@ -45,7 +47,7 @@ No hace falta definir `DJANGO_ALLOWED_HOSTS` si usaras el subdominio `.onrender.
 
 ```bash
 DJANGO_ALLOWED_HOSTS=tu-app.onrender.com,tu-dominio.com,www.tu-dominio.com
-DJANGO_CSRF_TRUSTED_ORIGINS=tu-app.onrender.com,tu-dominio.com,www.tu-dominio.com
+DJANGO_CSRF_TRUSTED_ORIGINS=https://tu-app.onrender.com,https://tu-dominio.com,https://www.tu-dominio.com
 ```
 
 ## Base de datos
@@ -75,6 +77,24 @@ Render no conserva `media/` en el disco normal entre deploys. Para produccion us
 
 - Persistent Disk de Render montado en `media/`.
 - Un almacenamiento externo como S3, Cloudinary o similar.
+
+El proyecto puede servir archivos de `media/` en Render con:
+
+```bash
+DJANGO_SERVE_MEDIA=true
+```
+
+En Render tambien se recomienda guardar los archivos subidos en PostgreSQL para evitar perderlos en redeploys:
+
+```bash
+DJANGO_USE_DATABASE_MEDIA_STORAGE=true
+```
+
+Si agregas un Persistent Disk, montalo en `/opt/render/project/src/media` o define:
+
+```bash
+DJANGO_MEDIA_ROOT=/ruta/del/disco
+```
 
 ## Comandos locales utiles
 

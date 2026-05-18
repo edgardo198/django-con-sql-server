@@ -14,16 +14,18 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from .core.homepage.views import IndexView
 from .core.erp.views.supplier.views import SupplierCreateView, SupplierDeleteView, SupplierListView, SupplierUpdateView
 from .core.user.views import OrganizationListView, SwitchOrganizationView
+from .core.media import media_diagnostics_view, serve_media
 
 from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('__media-diagnostics__/', media_diagnostics_view, name='media_diagnostics'),
     path('login/', include('app.core.login.urls')),
     # Compatibilidad con codigo legado que usa reverse('supplier_list')
     # en lugar de reverse('erp:supplier_list').
@@ -39,7 +41,11 @@ urlpatterns = [
     path('', IndexView.as_view(), name='index'),
 ]
 
-if settings.DEBUG:
+if settings.SERVE_MEDIA or getattr(settings, 'USE_DATABASE_MEDIA_STORAGE', False):
+    urlpatterns += [
+        re_path(r'^media/(?P<path>.*)$', serve_media),
+    ]
+elif settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 

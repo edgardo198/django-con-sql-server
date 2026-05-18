@@ -1,4 +1,5 @@
 from decimal import Decimal, ROUND_HALF_UP
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models, transaction
@@ -370,7 +371,7 @@ class Product(AuditModel):
         # Exponer `cat` para compatibilidad; preferir `category` cuando exista
         cat_obj = self.category or self.cat
         item['cat'] = cat_obj.toJSON() if getattr(cat_obj, 'toJSON', None) else {'id': '', 'name': 'Sin categoria'}
-        item['image'] = self.image.url if self.image else ''
+        item['image'] = self.image.url if self.image else '{}img/imagen.png'.format(settings.STATIC_URL)
         item['cost'] = format_money(self.cost)
         item['pvp'] = format_money(self.pvp)
         item['utility_unit'] = format_money(self.utility_unit)

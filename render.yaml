@@ -24,6 +24,10 @@ services:
         value: "true"
       - key: DJANGO_SECURE_SSL_REDIRECT
         value: "true"
+      - key: DJANGO_SERVE_MEDIA
+        value: "true"
+      - key: DJANGO_USE_DATABASE_MEDIA_STORAGE
+        value: "true"
       - key: SUPERADMIN_USERNAME
         value: superadmin
       - key: SUPERADMIN_EMAIL
