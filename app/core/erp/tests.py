@@ -699,6 +699,29 @@ class ERPDashboardAndReportsTests(TestCase):
         payload = product.toJSON()
         self.assertEqual(payload['cat']['name'], 'Sin categoria')
 
+    def test_product_create_requires_category(self):
+        response = self.client.post(
+            reverse('erp:product_create'),
+            {
+                'action': 'add',
+                'name': 'Producto sin categoria',
+                'barcode': 'NO-CAT-001',
+                'internal_code': 'NO-CAT-001',
+                'description': 'Debe rechazarse',
+                'unit': 'unidad',
+                'cost': '10.00',
+                'pvp': '15.00',
+                'stock': '1',
+                'min_stock': '1',
+                'is_active': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn('error', payload)
+        self.assertFalse(Product.objects.filter(name='Producto sin categoria').exists())
+
     def test_product_json_uses_placeholder_when_image_url_fails(self):
         class BrokenStorage:
             def url(self, name):

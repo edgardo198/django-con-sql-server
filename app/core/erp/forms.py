@@ -166,6 +166,8 @@ class ProductForm(RequestModelForm):
             self.fields['category'].queryset = categories
             self.fields['cat'].queryset = categories
             self.fields['tax_rate'].queryset = taxes
+        self.fields['category'].required = True
+        self.fields['category'].empty_label = 'Seleccione una categoria'
         if self.instance and not self.instance.category_id and self.instance.cat_id:
             self.initial['category'] = self.instance.cat_id
 
@@ -174,6 +176,8 @@ class ProductForm(RequestModelForm):
         for field_name in ('barcode', 'internal_code', 'description'):
             if cleaned.get(field_name) == '':
                 cleaned[field_name] = None
+        if not (cleaned.get('category') or cleaned.get('cat')):
+            raise forms.ValidationError('Debe seleccionar una categoria para el producto.')
         return cleaned
 
     def prepare_instance(self, instance):
