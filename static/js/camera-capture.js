@@ -48,7 +48,7 @@
             '    <button type="button" class="btn btn-secondary btn-sm js-camera-open"><i class="fas fa-camera"></i> Abrir camara</button>' +
             '    <button type="button" class="btn btn-primary btn-sm js-camera-shot" disabled><i class="fas fa-circle"></i> Tomar foto</button>' +
             '    <button type="button" class="btn btn-info btn-sm js-camera-switch" style="display:none;"><i class="fas fa-sync-alt"></i> Cambiar camara</button>' +
-            '    <button type="button" class="btn btn-danger btn-sm js-camera-stop" disabled><i class="fas fa-stop"></i> Detener</button>' +
+            '    <button type="button" class="btn btn-secondary btn-sm js-camera-stop" disabled><i class="fas fa-stop"></i> Detener</button>' +
             '  </div>' +
             '  <div class="camera-capture-status"></div>' +
             '  <canvas style="display:none;"></canvas>' +
