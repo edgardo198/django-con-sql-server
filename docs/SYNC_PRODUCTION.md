@@ -7,6 +7,8 @@ Mantener una base principal en Render y una base PostgreSQL local por equipo/ofi
 ## Variables requeridas en Render
 
 ```text
+APP_EDITION=cloud_backup
+CLOUD_BACKUP_ENABLED=true
 SYNC_API_TOKEN=clave-larga-secreta
 DJANGO_USE_DATABASE_MEDIA_STORAGE=true
 DJANGO_SERVE_MEDIA=true
@@ -17,6 +19,8 @@ DJANGO_SERVE_MEDIA=true
 ## Variables requeridas en cada equipo local
 
 ```bash
+set APP_EDITION=cloud_backup
+set CLOUD_BACKUP_ENABLED=true
 set DJANGO_DB_ENGINE=postgresql
 set POSTGRES_NAME=Tienda
 set POSTGRES_HOST=127.0.0.1
@@ -47,6 +51,8 @@ Con estas variables, Electron:
 - Si detecta cambios locales pendientes en `SyncOutbox`, sincroniza de inmediato.
 - Mantiene un WebSocket con Render en `/ws/sync/`; cuando Render avisa cambios, Electron ejecuta sync de inmediato.
 - Si no hay internet o Render no responde, no bloquea la app local; reintenta cada `SYNC_RETRY_SECONDS`.
+
+Si `CLOUD_BACKUP_ENABLED=false`, Electron trabaja como producto local y no intentara usar Render aunque existan `SYNC_REMOTE_URL` o `SYNC_API_TOKEN`.
 
 ## Flujo recomendado
 

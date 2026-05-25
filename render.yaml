@@ -28,6 +28,10 @@ services:
         value: "true"
       - key: DJANGO_USE_DATABASE_MEDIA_STORAGE
         value: "true"
+      - key: APP_EDITION
+        value: cloud_backup
+      - key: CLOUD_BACKUP_ENABLED
+        value: "true"
       - key: SYNC_API_TOKEN
         generateValue: true
       - key: SYNC_PULL_LIMIT

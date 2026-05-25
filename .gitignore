@@ -9,6 +9,8 @@ app/db.sqlite3
 venv/
 staticfiles/
 media/
+local_backups/
+backups/
 test-results/
 tools/
 .env

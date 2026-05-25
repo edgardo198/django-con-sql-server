@@ -21,6 +21,15 @@ Electron local   -> PostgreSQL local en 127.0.0.1
 Sincronizacion   -> /sync/pull/ y /sync/push/ cuando hay red
 ```
 
+Desde ahora el producto se puede vender en dos modos:
+
+```text
+APP_EDITION=local          -> solo PC/local, con backups ZIP locales
+APP_EDITION=cloud_backup   -> premium, con respaldo/sync hacia Render
+```
+
+Para el cliente local deja `CLOUD_BACKUP_ENABLED=false`. En ese modo Electron no intenta conectar con Render aunque existan variables `SYNC_*`.
+
 Electron lee `DJANGO_DB_ENGINE` y `POSTGRES_*` desde `.env`. Si necesitas una base distinta solo para Electron, puedes usar `ELECTRON_DB_ENGINE` y `ELECTRON_POSTGRES_*`.
 
 Ejemplo local:
@@ -49,12 +58,15 @@ POST /sync/push/
 En Render debes configurar la misma clave secreta:
 
 ```text
+CLOUD_BACKUP_ENABLED=true
 SYNC_API_TOKEN=una-clave-larga-y-secreta
 ```
 
 En la maquina local/Electron configura esas variables en PowerShell o guardalas en `.env`:
 
 ```bash
+set APP_EDITION=cloud_backup
+set CLOUD_BACKUP_ENABLED=true
 set SYNC_REMOTE_URL=https://tu-app.onrender.com
 set SYNC_API_TOKEN=una-clave-larga-y-secreta
 npm run electron
@@ -95,6 +107,32 @@ venv\Scripts\python.exe manage.py reset_local_from_remote --remote https://tu-ap
 ```
 
 Ese comando no borra nada si Render no responde correctamente en `/sync/status/`.
+
+## Backup local para clientes sin Render
+
+Para clientes que no pagan respaldo en linea:
+
+```text
+APP_EDITION=local
+CLOUD_BACKUP_ENABLED=false
+LOCAL_BACKUP_ENABLED=true
+LOCAL_BACKUP_INTERVAL_SECONDS=86400
+LOCAL_BACKUP_RETENTION=14
+LOCAL_BACKUP_DIR=local_backups
+LOCAL_BACKUP_INCLUDE_MEDIA=true
+```
+
+Electron crea un respaldo ZIP automatico cada 24 horas y conserva los ultimos 14. Tambien puedes hacerlo manual:
+
+```bash
+venv\Scripts\python.exe manage.py local_backup --output-dir D:\RespaldosERP --keep 30
+```
+
+Restaurar un ZIP local:
+
+```bash
+venv\Scripts\python.exe manage.py restore_local_backup D:\RespaldosERP\erp-local-backup-YYYYMMDD-HHMMSS.zip --yes --restore-media
+```
 
 Importante: el primer ciclo debe hacerse con red para traer usuarios, tiendas, productos y datos base desde Render. Luego puedes trabajar sin conexion; los cambios locales se guardan en una cola (`SyncOutbox`) y se suben cuando vuelva la red.
 

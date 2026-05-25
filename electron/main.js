@@ -19,6 +19,8 @@ const ELECTRON_ENV_KEYS = new Set([
   'ELECTRON_POSTGRES_PORT',
   'ELECTRON_POSTGRES_USER',
   'ELECTRON_POSTGRES_PASSWORD',
+  'APP_EDITION',
+  'CLOUD_BACKUP_ENABLED',
   'DJANGO_DB_ENGINE',
   'DATABASE_URL',
   'SQLITE_NAME',
@@ -40,10 +42,16 @@ const ELECTRON_ENV_KEYS = new Set([
   'SYNC_BATCH_SIZE',
   'SYNC_PULL_BATCH_SIZE',
   'SYNC_LOCK_TTL_SECONDS',
+  'LOCAL_BACKUP_ENABLED',
+  'LOCAL_BACKUP_INTERVAL_SECONDS',
+  'LOCAL_BACKUP_RETENTION',
+  'LOCAL_BACKUP_DIR',
+  'LOCAL_BACKUP_INCLUDE_MEDIA',
   'DJANGO_USE_DATABASE_MEDIA_STORAGE',
   'SUPERADMIN_USERNAME',
   'SUPERADMIN_EMAIL',
   'SUPERADMIN_PASSWORD',
+  'ELECTRON_BOOTSTRAP_ACCESS',
 ]);
 
 let mainWindow = null;
@@ -55,6 +63,8 @@ let syncSocketReconnectTimer = null;
 let syncSocketActive = false;
 let triggerSyncNow = null;
 let syncInFlight = false;
+let localBackupTimer = null;
+let localBackupInFlight = false;
 const logs = [];
 
 function rememberLog(chunk) {
@@ -153,6 +163,31 @@ function normalizeDbEngine(engine) {
   return value;
 }
 
+function envBool(value, defaultValue = false) {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
+function envNumber(value, defaultValue) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+}
+
+function isCloudBackupEnabled(env) {
+  if (env.CLOUD_BACKUP_ENABLED !== undefined && env.CLOUD_BACKUP_ENABLED !== '') {
+    return envBool(env.CLOUD_BACKUP_ENABLED);
+  }
+
+  const edition = String(env.APP_EDITION || 'local').trim().toLowerCase();
+  return ['premium', 'cloud', 'cloud_backup', 'online_backup', 'render_backup'].includes(edition);
+}
+
+function isLocalBackupEnabled(env) {
+  return envBool(env.LOCAL_BACKUP_ENABLED, true);
+}
+
 function buildDatabaseEnv(sqlitePath) {
   const engine = normalizeDbEngine(process.env.ELECTRON_DB_ENGINE || process.env.DJANGO_DB_ENGINE || 'sqlite');
 
@@ -177,13 +212,16 @@ function buildDatabaseEnv(sqlitePath) {
 }
 
 function buildDjangoEnv(projectRoot, port, sqlitePath) {
-  const hasSyncConfig = Boolean(
+  const cloudBackupEnabled = isCloudBackupEnabled(process.env);
+  const hasSyncConfig = cloudBackupEnabled && Boolean(
     process.env.SYNC_REMOTE_URL && (process.env.SYNC_API_TOKEN || process.env.DJANGO_SYNC_TOKEN)
   );
   const databaseEnv = buildDatabaseEnv(sqlitePath);
 
   return {
     ...process.env,
+    APP_EDITION: process.env.APP_EDITION || (cloudBackupEnabled ? 'cloud_backup' : 'local'),
+    CLOUD_BACKUP_ENABLED: cloudBackupEnabled ? 'true' : 'false',
     DJANGO_ENV: 'local',
     DJANGO_DEBUG: 'true',
     ...databaseEnv,
@@ -428,6 +466,10 @@ function stopDjango() {
     clearInterval(syncWakeTimer);
     syncWakeTimer = null;
   }
+  if (localBackupTimer) {
+    clearTimeout(localBackupTimer);
+    localBackupTimer = null;
+  }
   syncSocketActive = false;
   if (syncSocketReconnectTimer) {
     clearTimeout(syncSocketReconnectTimer);
@@ -498,6 +540,11 @@ function checkRemoteSyncAvailable(remoteUrl, syncToken, timeoutMs = 10000) {
 }
 
 function startSyncLoop(projectRoot, env) {
+  if (!isCloudBackupEnabled(env)) {
+    rememberLog('Modo local: respaldo en Render desactivado. Use CLOUD_BACKUP_ENABLED=true para clientes premium.\n');
+    return;
+  }
+
   const remoteUrl = env.SYNC_REMOTE_URL;
   const syncToken = env.SYNC_API_TOKEN || env.DJANGO_SYNC_TOKEN;
   if (!remoteUrl || !syncToken) {
@@ -505,13 +552,13 @@ function startSyncLoop(projectRoot, env) {
     return;
   }
 
-  const intervalSeconds = Number(env.SYNC_INTERVAL_SECONDS || 300);
+  const intervalSeconds = envNumber(env.SYNC_INTERVAL_SECONDS, 300);
   const intervalMs = Math.max(intervalSeconds, 60) * 1000;
-  const retrySeconds = Number(env.SYNC_RETRY_SECONDS || 30);
+  const retrySeconds = envNumber(env.SYNC_RETRY_SECONDS, 30);
   const retryMs = Math.max(retrySeconds, 15) * 1000;
-  const debounceSeconds = Number(env.SYNC_DEBOUNCE_SECONDS || 5);
+  const debounceSeconds = envNumber(env.SYNC_DEBOUNCE_SECONDS, 5);
   const debounceMs = Math.max(debounceSeconds, 2) * 1000;
-  const connectivityTimeoutMs = Math.max(Number(env.SYNC_CONNECTIVITY_TIMEOUT_SECONDS || 10), 3) * 1000;
+  const connectivityTimeoutMs = Math.max(envNumber(env.SYNC_CONNECTIVITY_TIMEOUT_SECONDS, 10), 3) * 1000;
 
   const scheduleNext = (delayMs) => {
     if (syncTimer) {
@@ -581,7 +628,7 @@ function startSyncSocket(env) {
   }
 
   const socketPath = env.SYNC_WEBSOCKET_PATH || '/ws/sync/';
-  const retrySeconds = Math.max(Number(env.SYNC_WEBSOCKET_RETRY_SECONDS || env.SYNC_RETRY_SECONDS || 30), 15);
+  const retrySeconds = Math.max(envNumber(env.SYNC_WEBSOCKET_RETRY_SECONDS || env.SYNC_RETRY_SECONDS, 30), 15);
   const retryMs = retrySeconds * 1000;
   syncSocketActive = true;
 
@@ -644,7 +691,54 @@ function startSyncSocket(env) {
 }
 
 function hasRemoteSyncConfig(env) {
-  return Boolean(env.SYNC_REMOTE_URL && (env.SYNC_API_TOKEN || env.DJANGO_SYNC_TOKEN));
+  return Boolean(isCloudBackupEnabled(env) && env.SYNC_REMOTE_URL && (env.SYNC_API_TOKEN || env.DJANGO_SYNC_TOKEN));
+}
+
+function startLocalBackupLoop(projectRoot, env) {
+  if (!isLocalBackupEnabled(env)) {
+    rememberLog('Respaldos locales automaticos desactivados.\n');
+    return;
+  }
+
+  const intervalSeconds = Math.max(envNumber(env.LOCAL_BACKUP_INTERVAL_SECONDS, 86400), 3600);
+  const intervalMs = intervalSeconds * 1000;
+  const retention = Math.max(envNumber(env.LOCAL_BACKUP_RETENTION, 14), 1);
+  const includeMedia = envBool(env.LOCAL_BACKUP_INCLUDE_MEDIA, true);
+  const outputDir = env.LOCAL_BACKUP_DIR || '';
+
+  const scheduleNextBackup = (delayMs) => {
+    if (localBackupTimer) {
+      clearTimeout(localBackupTimer);
+    }
+    localBackupTimer = setTimeout(runBackup, delayMs);
+  };
+
+  const runBackup = async () => {
+    if (localBackupInFlight) {
+      scheduleNextBackup(intervalMs);
+      return;
+    }
+
+    localBackupInFlight = true;
+    try {
+      const args = ['local_backup', '--keep', String(retention)];
+      if (outputDir) {
+        args.push('--output-dir', outputDir);
+      }
+      if (!includeMedia) {
+        args.push('--no-media');
+      }
+      const result = await runManageOutput(projectRoot, env, args);
+      rememberLog(`${result}\nProximo respaldo local en ${Math.round(intervalMs / 1000)}s.\n`);
+    } catch (error) {
+      rememberLog(`Respaldo local fallo: ${error.message}\n`);
+    } finally {
+      localBackupInFlight = false;
+      scheduleNextBackup(intervalMs);
+    }
+  };
+
+  scheduleNextBackup(60000);
 }
 
 async function runInitialRemotePull(projectRoot, env) {
@@ -654,7 +748,7 @@ async function runInitialRemotePull(projectRoot, env) {
 
   try {
     const syncToken = env.SYNC_API_TOKEN || env.DJANGO_SYNC_TOKEN;
-    const timeoutMs = Math.max(Number(env.SYNC_CONNECTIVITY_TIMEOUT_SECONDS || 10), 3) * 1000;
+    const timeoutMs = Math.max(envNumber(env.SYNC_CONNECTIVITY_TIMEOUT_SECONDS, 10), 3) * 1000;
     const status = await checkRemoteSyncAvailable(env.SYNC_REMOTE_URL, syncToken, timeoutMs);
     if (!status.ok) {
       rememberLog(`Sync inicial omitida: ${status.reason}.\n`);
@@ -698,6 +792,7 @@ async function bootstrap() {
     }
 
     startSyncLoop(projectRoot, env);
+    startLocalBackupLoop(projectRoot, env);
   } catch (error) {
     const detail = `${error.message}\n\n${logs.join('')}`;
     dialog.showErrorBox('No se pudo iniciar ERP Comercial', detail.slice(-6000));
