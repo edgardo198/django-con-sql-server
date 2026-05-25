@@ -3,8 +3,7 @@ from datetime import timedelta
 from urllib.parse import urlparse
 
 
-def load_local_env():
-    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+def load_env_file(env_path, override=False):
     if not os.path.exists(env_path):
         return
 
@@ -14,7 +13,18 @@ def load_local_env():
             if not line or line.startswith('#') or '=' not in line:
                 continue
             name, value = line.split('=', 1)
-            os.environ.setdefault(name.strip(), value.strip().strip('"').strip("'"))
+            name = name.strip()
+            value = value.strip().strip('"').strip("'")
+            if override:
+                os.environ[name] = value
+            else:
+                os.environ.setdefault(name, value)
+
+
+def load_local_env():
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    load_env_file(os.path.join(base_dir, '.env'))
+    load_env_file(os.path.join(base_dir, '.env.local'), override=True)
 
 
 load_local_env()
