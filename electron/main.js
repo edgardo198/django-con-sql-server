@@ -31,6 +31,7 @@ const ELECTRON_ENV_KEYS = new Set([
   'DJANGO_SYNC_TOKEN',
   'SYNC_INTERVAL_SECONDS',
   'SYNC_RETRY_SECONDS',
+  'SYNC_DEBOUNCE_SECONDS',
   'SYNC_CONNECTIVITY_TIMEOUT_SECONDS',
   'SYNC_BATCH_SIZE',
   'SYNC_PULL_BATCH_SIZE',
@@ -44,6 +45,7 @@ const ELECTRON_ENV_KEYS = new Set([
 let mainWindow = null;
 let djangoProcess = null;
 let syncTimer = null;
+let syncWakeTimer = null;
 let syncInFlight = false;
 const logs = [];
 
@@ -209,6 +211,33 @@ function runManage(projectRoot, env, manageArgs) {
     child.on('close', (code) => {
       if (code === 0) {
         resolve();
+      } else {
+        reject(new Error(`manage.py ${manageArgs.join(' ')} termino con codigo ${code}`));
+      }
+    });
+  });
+}
+
+function runManageOutput(projectRoot, env, manageArgs) {
+  return new Promise((resolve, reject) => {
+    const python = getPythonCommand(projectRoot);
+    const child = spawn(
+      python.command,
+      [...python.args, 'manage.py', ...manageArgs],
+      { cwd: projectRoot, env, windowsHide: true }
+    );
+
+    let stdout = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+      rememberLog(chunk);
+    });
+    child.stderr.on('data', rememberLog);
+
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve(stdout.trim());
       } else {
         reject(new Error(`manage.py ${manageArgs.join(' ')} termino con codigo ${code}`));
       }
@@ -384,6 +413,10 @@ function stopDjango() {
     clearTimeout(syncTimer);
     syncTimer = null;
   }
+  if (syncWakeTimer) {
+    clearInterval(syncWakeTimer);
+    syncWakeTimer = null;
+  }
 
   if (djangoProcess) {
     djangoProcess.kill();
@@ -448,6 +481,8 @@ function startSyncLoop(projectRoot, env) {
   const intervalMs = Math.max(intervalSeconds, 60) * 1000;
   const retrySeconds = Number(env.SYNC_RETRY_SECONDS || 30);
   const retryMs = Math.max(retrySeconds, 15) * 1000;
+  const debounceSeconds = Number(env.SYNC_DEBOUNCE_SECONDS || 5);
+  const debounceMs = Math.max(debounceSeconds, 2) * 1000;
   const connectivityTimeoutMs = Math.max(Number(env.SYNC_CONNECTIVITY_TIMEOUT_SECONDS || 10), 3) * 1000;
 
   const scheduleNext = (delayMs) => {
@@ -484,6 +519,22 @@ function startSyncLoop(projectRoot, env) {
   };
 
   scheduleNext(5000);
+  syncWakeTimer = setInterval(async () => {
+    if (syncInFlight) {
+      return;
+    }
+
+    try {
+      const pendingText = await runManageOutput(projectRoot, env, ['sync_pending_count']);
+      const pendingCount = Number(pendingText.split(/\s+/).pop() || 0);
+      if (pendingCount > 0) {
+        rememberLog(`Cambios locales pendientes: ${pendingCount}. Sincronizando ahora.\n`);
+        scheduleNext(250);
+      }
+    } catch (error) {
+      rememberLog(`No se pudo revisar la cola de sync: ${error.message}\n`);
+    }
+  }, debounceMs);
 }
 
 function hasRemoteSyncConfig(env) {
