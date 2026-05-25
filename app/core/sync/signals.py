@@ -1,10 +1,12 @@
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.db.models.signals import m2m_changed, post_save, pre_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
 from app.core.sync.context import is_sync_suppressed
 from app.core.sync.models import SyncIdentity, SyncOutbox, SyncTombstone
+from app.core.sync.notifier import notify_sync_required
 from app.core.sync.registry import get_model_label, is_sync_model
 
 
@@ -28,6 +30,11 @@ def queue_instance(instance):
         sync_uuid=identity.sync_uuid,
         action=SyncOutbox.ACTION_UPSERT,
     )
+    transaction.on_commit(lambda: notify_sync_required(
+        reason='local_change',
+        model=identity.model_label,
+        sync_uuid=identity.sync_uuid,
+    ))
 
 
 @receiver(post_save)
@@ -53,6 +60,11 @@ def queue_deleted_instance(sender, instance, **kwargs):
         sync_uuid=identity.sync_uuid,
         action=SyncOutbox.ACTION_DELETE,
     )
+    transaction.on_commit(lambda: notify_sync_required(
+        reason='local_delete',
+        model=identity.model_label,
+        sync_uuid=identity.sync_uuid,
+    ))
 
 
 @receiver(m2m_changed, sender=get_user_model().groups.through)

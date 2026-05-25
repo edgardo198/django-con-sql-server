@@ -5,6 +5,7 @@ const http = require('http');
 const https = require('https');
 const net = require('net');
 const path = require('path');
+const WebSocket = require('ws');
 
 const HOST = '127.0.0.1';
 const DEFAULT_PORT = Number(process.env.ELECTRON_DJANGO_PORT || 8765);
@@ -32,6 +33,9 @@ const ELECTRON_ENV_KEYS = new Set([
   'SYNC_INTERVAL_SECONDS',
   'SYNC_RETRY_SECONDS',
   'SYNC_DEBOUNCE_SECONDS',
+  'SYNC_WEBSOCKET_ENABLED',
+  'SYNC_WEBSOCKET_PATH',
+  'SYNC_WEBSOCKET_RETRY_SECONDS',
   'SYNC_CONNECTIVITY_TIMEOUT_SECONDS',
   'SYNC_BATCH_SIZE',
   'SYNC_PULL_BATCH_SIZE',
@@ -46,6 +50,10 @@ let mainWindow = null;
 let djangoProcess = null;
 let syncTimer = null;
 let syncWakeTimer = null;
+let syncSocket = null;
+let syncSocketReconnectTimer = null;
+let syncSocketActive = false;
+let triggerSyncNow = null;
 let syncInFlight = false;
 const logs = [];
 
@@ -105,6 +113,9 @@ function loadElectronEnvFile(filePath, options = {}) {
   for (const line of lines) {
     const parsed = parseEnvLine(line);
     if (!parsed || !ELECTRON_ENV_KEYS.has(parsed.key)) {
+      continue;
+    }
+    if (override && parsed.value === '' && process.env[parsed.key] !== undefined) {
       continue;
     }
     if (override || process.env[parsed.key] === undefined) {
@@ -417,6 +428,15 @@ function stopDjango() {
     clearInterval(syncWakeTimer);
     syncWakeTimer = null;
   }
+  syncSocketActive = false;
+  if (syncSocketReconnectTimer) {
+    clearTimeout(syncSocketReconnectTimer);
+    syncSocketReconnectTimer = null;
+  }
+  if (syncSocket) {
+    syncSocket.close();
+    syncSocket = null;
+  }
 
   if (djangoProcess) {
     djangoProcess.kill();
@@ -430,6 +450,14 @@ function normalizeRemoteUrl(remoteUrl) {
 
 function remoteStatusUrl(remoteUrl) {
   return `${normalizeRemoteUrl(remoteUrl)}/sync/status/`;
+}
+
+function remoteWebSocketUrl(remoteUrl, socketPath) {
+  const url = new URL(normalizeRemoteUrl(remoteUrl));
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  url.pathname = socketPath || '/ws/sync/';
+  url.search = '';
+  return url.toString();
 }
 
 function checkRemoteSyncAvailable(remoteUrl, syncToken, timeoutMs = 10000) {
@@ -491,6 +519,7 @@ function startSyncLoop(projectRoot, env) {
     }
     syncTimer = setTimeout(runSync, delayMs);
   };
+  triggerSyncNow = () => scheduleNext(250);
 
   const runSync = async () => {
     if (syncInFlight) {
@@ -519,6 +548,7 @@ function startSyncLoop(projectRoot, env) {
   };
 
   scheduleNext(5000);
+  startSyncSocket(env);
   syncWakeTimer = setInterval(async () => {
     if (syncInFlight) {
       return;
@@ -535,6 +565,82 @@ function startSyncLoop(projectRoot, env) {
       rememberLog(`No se pudo revisar la cola de sync: ${error.message}\n`);
     }
   }, debounceMs);
+}
+
+function startSyncSocket(env) {
+  const enabled = String(env.SYNC_WEBSOCKET_ENABLED || 'true').toLowerCase();
+  if (enabled === '0' || enabled === 'false' || enabled === 'no') {
+    rememberLog('WebSocket de sincronizacion desactivado.\n');
+    return;
+  }
+
+  const remoteUrl = env.SYNC_REMOTE_URL;
+  const syncToken = env.SYNC_API_TOKEN || env.DJANGO_SYNC_TOKEN;
+  if (!remoteUrl || !syncToken) {
+    return;
+  }
+
+  const socketPath = env.SYNC_WEBSOCKET_PATH || '/ws/sync/';
+  const retrySeconds = Math.max(Number(env.SYNC_WEBSOCKET_RETRY_SECONDS || env.SYNC_RETRY_SECONDS || 30), 15);
+  const retryMs = retrySeconds * 1000;
+  syncSocketActive = true;
+
+  const connect = () => {
+    if (!syncSocketActive) {
+      return;
+    }
+    if (syncSocket) {
+      syncSocket.close();
+      syncSocket = null;
+    }
+
+    let socketUrl;
+    try {
+      socketUrl = remoteWebSocketUrl(remoteUrl, socketPath);
+    } catch (error) {
+      rememberLog(`WebSocket sync URL invalida: ${error.message}\n`);
+      return;
+    }
+
+    syncSocket = new WebSocket(socketUrl, {
+      headers: { 'X-Sync-Token': syncToken },
+    });
+
+    syncSocket.on('open', () => {
+      rememberLog('WebSocket sync conectado.\n');
+      if (triggerSyncNow) {
+        triggerSyncNow();
+      }
+    });
+
+    syncSocket.on('message', (message) => {
+      try {
+        const payload = JSON.parse(message.toString());
+        if (payload.type === 'sync_required') {
+          rememberLog(`Render aviso cambios (${payload.reason || 'remote_change'}). Sincronizando.\n`);
+          if (triggerSyncNow) {
+            triggerSyncNow();
+          }
+        }
+      } catch (error) {
+        rememberLog(`Mensaje WebSocket sync invalido: ${error.message}\n`);
+      }
+    });
+
+    syncSocket.on('close', () => {
+      syncSocket = null;
+      if (syncSocketActive) {
+        rememberLog(`WebSocket sync desconectado. Reintentando en ${retrySeconds}s.\n`);
+        syncSocketReconnectTimer = setTimeout(connect, retryMs);
+      }
+    });
+
+    syncSocket.on('error', (error) => {
+      rememberLog(`WebSocket sync error: ${error.message}\n`);
+    });
+  };
+
+  connect();
 }
 
 function hasRemoteSyncConfig(env) {

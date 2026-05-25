@@ -15,6 +15,8 @@ def load_env_file(env_path, override=False):
             name, value = line.split('=', 1)
             name = name.strip()
             value = value.strip().strip('"').strip("'")
+            if override and value == '' and os.environ.get(name):
+                continue
             if override:
                 os.environ[name] = value
             else:

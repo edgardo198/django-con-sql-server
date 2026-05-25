@@ -68,12 +68,17 @@ Electron intentara sincronizar al arrancar y luego cada 5 minutos. Puedes cambia
 set SYNC_INTERVAL_SECONDS=120
 set SYNC_RETRY_SECONDS=30
 set SYNC_DEBOUNCE_SECONDS=5
+set SYNC_WEBSOCKET_ENABLED=true
+set SYNC_WEBSOCKET_PATH=/ws/sync/
+set SYNC_WEBSOCKET_RETRY_SECONDS=30
 set SYNC_CONNECTIVITY_TIMEOUT_SECONDS=10
 ```
 
 Antes de cada sincronizacion, Electron revisa `https://tu-app.onrender.com/sync/status/`. Si no hay internet, el token falla o Render no tiene `/sync/` desplegado, la app local sigue funcionando y reintenta despues de `SYNC_RETRY_SECONDS`.
 
 Cada vez que guardas o eliminas datos locales, Django crea una entrada en `SyncOutbox`. Electron revisa esa cola cada `SYNC_DEBOUNCE_SECONDS`; si hay cambios pendientes, sincroniza de inmediato en lugar de esperar al intervalo completo.
+
+Ademas Electron abre un WebSocket contra `wss://tu-app.onrender.com/ws/sync/`. Si alguien cambia datos desde la web en Render, Render envia un aviso y Electron ejecuta la sincronizacion inmediatamente. Si el WebSocket se corta, se reconecta solo.
 
 Cuando `SYNC_REMOTE_URL` y `SYNC_API_TOKEN` estan configurados, Electron guarda media en base de datos (`StoredMediaFile`) para que logos/fotos/imagenes tambien puedan sincronizarse. En Render ya queda recomendado `DJANGO_USE_DATABASE_MEDIA_STORAGE=true`.
 

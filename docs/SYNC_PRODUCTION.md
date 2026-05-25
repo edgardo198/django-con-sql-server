@@ -28,6 +28,9 @@ set SYNC_API_TOKEN=la-misma-clave-de-render
 set SYNC_INTERVAL_SECONDS=300
 set SYNC_RETRY_SECONDS=30
 set SYNC_DEBOUNCE_SECONDS=5
+set SYNC_WEBSOCKET_ENABLED=true
+set SYNC_WEBSOCKET_PATH=/ws/sync/
+set SYNC_WEBSOCKET_RETRY_SECONDS=30
 set SYNC_CONNECTIVITY_TIMEOUT_SECONDS=10
 npm run electron
 ```
@@ -42,6 +45,7 @@ Con estas variables, Electron:
 - Revisa `/sync/status/` antes de sincronizar.
 - Sincroniza al iniciar y luego cada intervalo.
 - Si detecta cambios locales pendientes en `SyncOutbox`, sincroniza de inmediato.
+- Mantiene un WebSocket con Render en `/ws/sync/`; cuando Render avisa cambios, Electron ejecuta sync de inmediato.
 - Si no hay internet o Render no responde, no bloquea la app local; reintenta cada `SYNC_RETRY_SECONDS`.
 
 ## Flujo recomendado

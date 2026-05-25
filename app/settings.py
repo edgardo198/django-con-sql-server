@@ -68,6 +68,8 @@ if not DEBUG and SECRET_KEY == DEFAULT_SECRET_KEY:
 
 
 INSTALLED_APPS = [
+    'daphne',
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -114,6 +116,16 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'app.wsgi.application'
+ASGI_APPLICATION = 'app.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': os.getenv(
+            'CHANNEL_LAYER_BACKEND',
+            'channels.layers.InMemoryChannelLayer',
+        ),
+    },
+}
 
 DATABASES = db.get_databases(use_sqlite=False, debug=DEBUG)
 

@@ -8,6 +8,7 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+from app.core.sync.notifier import notify_sync_required
 from app.core.sync.serializers import apply_records, collect_pull_records
 
 
@@ -119,6 +120,8 @@ def sync_push(request):
         results = apply_records(records)
     except Exception as exc:
         return JsonResponse({'error': str(exc)}, status=400)
+
+    notify_sync_required(reason='remote_push')
 
     return JsonResponse({
         'server_time': timezone.now().isoformat(),

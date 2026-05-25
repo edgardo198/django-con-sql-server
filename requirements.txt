@@ -3,6 +3,7 @@ asgiref==3.7.2
 asn1crypto==1.5.1
 certifi==2023.11.17
 cffi==1.16.0
+channels==4.0.0
 charset-normalizer==3.3.2
 click==8.1.7
 colorama==0.4.6
@@ -11,6 +12,7 @@ cssselect2==0.7.0
 Django==4.1.13
 django-crum==0.7.9
 django-widget-tweaks==1.5.0
+daphne==4.0.0
 gunicorn==23.0.0
 html5lib==1.1
 idna==3.4
