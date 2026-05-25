@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.template.loader import get_template
@@ -1084,6 +1085,61 @@ class ERPDashboardAndReportsTests(TestCase):
         self.product.refresh_from_db()
         self.assertEqual(purchase.status, 'cancelled')
         self.assertEqual(self.product.stock, starting_stock)
+
+    def test_product_initial_stock_creates_inventory_movement(self):
+        movement = InventoryMovement.objects.get(
+            product=self.product,
+            reference=f'PROD-{self.product.id}-INI',
+        )
+
+        self.assertEqual(movement.movement_type, 'adjustment_in')
+        self.assertEqual(movement.quantity, 10)
+        self.assertEqual(movement.stock_before, 0)
+        self.assertEqual(movement.stock_after, 10)
+
+    def test_manual_stock_change_creates_adjustment_movement(self):
+        self.product.stock = 15
+        self.product.save(update_fields=['stock'])
+
+        self.product.refresh_from_db()
+        movement = InventoryMovement.objects.filter(
+            product=self.product,
+            reference=f'PROD-{self.product.id}-ADJ',
+        ).latest('id')
+
+        self.assertEqual(self.product.stock, 15)
+        self.assertEqual(movement.movement_type, 'adjustment_in')
+        self.assertEqual(movement.quantity, 5)
+        self.assertEqual(movement.stock_before, 10)
+        self.assertEqual(movement.stock_after, 15)
+
+    def test_inventory_movement_is_the_stock_write_path(self):
+        movement = InventoryMovement.objects.create(
+            organization=self.organization,
+            product=self.product,
+            movement_type='sale',
+            quantity=3,
+            reference='TEST-SALE-MOV',
+        )
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 7)
+        self.assertEqual(movement.stock_before, 10)
+        self.assertEqual(movement.stock_after, 7)
+        self.assertEqual(movement.stock_delta, -3)
+
+    def test_inventory_movement_blocks_negative_stock(self):
+        with self.assertRaises(ValidationError):
+            InventoryMovement.objects.create(
+                organization=self.organization,
+                product=self.product,
+                movement_type='sale',
+                quantity=999,
+                reference='TEST-NEGATIVE-MOV',
+            )
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 10)
 
     def test_purchase_create_returns_clear_error_when_supplier_is_missing(self):
         payload = {

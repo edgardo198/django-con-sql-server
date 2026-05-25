@@ -368,7 +368,50 @@ class Product(AuditModel):
 
     def save(self, *args, **kwargs):
         self.sync_category_aliases()
-        super().save(*args, **kwargs)
+        track_stock = not getattr(self, '_skip_inventory_movement', False) and not self.is_service
+        requested_stock = int(self.stock or 0)
+        if requested_stock < 0:
+            raise ValidationError({'stock': 'El stock no puede ser negativo.'})
+        is_new = self.pk is None
+        previous_stock = 0
+        should_create_adjustment = False
+        skip_base_save = False
+        update_fields = kwargs.get('update_fields')
+
+        if track_stock:
+            if is_new:
+                should_create_adjustment = requested_stock != 0
+                self.stock = 0 if should_create_adjustment else requested_stock
+            else:
+                current = type(self).objects.filter(pk=self.pk).only('stock').first()
+                previous_stock = int(current.stock or 0) if current else 0
+                should_create_adjustment = previous_stock != requested_stock
+                if should_create_adjustment:
+                    self.stock = previous_stock
+                    if update_fields is not None:
+                        update_fields = set(update_fields)
+                        update_fields.discard('stock')
+                        if update_fields:
+                            kwargs['update_fields'] = update_fields
+                        else:
+                            skip_base_save = True
+
+        if not skip_base_save:
+            super().save(*args, **kwargs)
+
+        if track_stock and should_create_adjustment:
+            movement_type = 'adjustment_in' if requested_stock > previous_stock else 'adjustment_out'
+            InventoryMovement.objects.create(
+                organization=self.organization,
+                product=self,
+                movement_type=movement_type,
+                quantity=abs(requested_stock - previous_stock),
+                description='Ajuste inicial de stock' if is_new else 'Ajuste manual de stock',
+                reference='PROD-{}-{}'.format(self.pk, 'INI' if is_new else 'ADJ'),
+                user_creation=self.user_creation,
+                user_updated=self.user_updated,
+            )
+            self.stock = requested_stock
 
     def toJSON(self):
         item = model_to_dict(
@@ -599,10 +642,96 @@ class InventoryMovement(AuditModel):
     reference = models.CharField(max_length=100, blank=True, null=True, verbose_name='Referencia')
     date_joined = models.DateTimeField(default=timezone.now, verbose_name='Fecha')
 
+    INCOMING_TYPES = {
+        'purchase',
+        'adjustment_in',
+        'sale_cancel',
+        'return_sale',
+    }
+    OUTGOING_TYPES = {
+        'sale',
+        'adjustment_out',
+        'purchase_cancel',
+        'return_purchase',
+    }
+    IMMUTABLE_FIELDS = (
+        'organization_id',
+        'product_id',
+        'movement_type',
+        'quantity',
+        'stock_before',
+        'stock_after',
+    )
+
+    @property
+    def stock_delta(self):
+        return self.signed_quantity()
+
+    def signed_quantity(self):
+        quantity = int(self.quantity or 0)
+        if self.movement_type in self.INCOMING_TYPES:
+            return quantity
+        if self.movement_type in self.OUTGOING_TYPES:
+            return -quantity
+        raise ValidationError({'movement_type': 'Tipo de movimiento de inventario no soportado.'})
+
     def clean(self):
         if self.product and self.organization_id and self.product.organization_id:
             if self.organization_id != self.product.organization_id:
                 raise ValidationError({'product': 'El producto no pertenece a la misma organización.'})
+        if int(self.quantity or 0) <= 0:
+            raise ValidationError({'quantity': 'La cantidad del movimiento debe ser mayor que cero.'})
+        self.signed_quantity()
+
+    def validate_immutable_fields(self):
+        if not self.pk:
+            return
+
+        previous = type(self).objects.filter(pk=self.pk).only(*self.IMMUTABLE_FIELDS).first()
+        if not previous:
+            return
+
+        for field_name in self.IMMUTABLE_FIELDS:
+            if getattr(previous, field_name) != getattr(self, field_name):
+                raise ValidationError(
+                    'Los movimientos de inventario no se editan. Cree un ajuste para corregir el stock.'
+                )
+
+    def apply_to_product_stock(self):
+        if not self.product_id:
+            raise ValidationError({'product': 'Debe seleccionar un producto.'})
+
+        product = Product.objects.select_for_update().get(pk=self.product_id)
+        if product.is_service:
+            raise ValidationError({'product': 'Los servicios no manejan movimientos de inventario.'})
+
+        if not self.organization_id:
+            self.organization = product.organization
+
+        self.clean()
+        stock_before = int(product.stock or 0)
+        stock_after = stock_before + self.signed_quantity()
+        if stock_after < 0:
+            raise ValidationError(
+                'Stock insuficiente para {}. Disponible: {}'.format(product.name, product.stock)
+            )
+
+        self.stock_before = stock_before
+        self.stock_after = stock_after
+        product.stock = stock_after
+        product._skip_inventory_movement = True
+        models.Model.save(product, update_fields=['stock', 'date_updated'])
+        self.product = product
+
+    @transaction.atomic
+    def save(self, *args, **kwargs):
+        if self.pk:
+            self.validate_immutable_fields()
+            super().save(*args, **kwargs)
+            return
+
+        self.apply_to_product_stock()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.get_movement_type_display()} - {self.product.name} - {self.quantity}'
@@ -613,6 +742,7 @@ class InventoryMovement(AuditModel):
             exclude=['user_creation', 'user_updated', 'date_creation', 'date_updated'],
         )
         item['product'] = self.product.toJSON()
+        item['stock_delta'] = self.stock_delta
         item['date_joined'] = self.date_joined.strftime('%Y-%m-%d %H:%M:%S')
         return item
 
@@ -620,6 +750,11 @@ class InventoryMovement(AuditModel):
         verbose_name = 'Movimiento de inventario'
         verbose_name_plural = 'Movimientos de inventario'
         ordering = ['-id']
+        indexes = [
+            models.Index(fields=['organization', 'date_joined']),
+            models.Index(fields=['product', 'date_joined']),
+            models.Index(fields=['reference']),
+        ]
 
 
 # =========================================================
@@ -704,24 +839,22 @@ class Purchase(AuditModel):
             raise ValidationError('Solo se pueden confirmar compras en borrador.')
 
         details = list(self.details.select_related('prod').order_by('prod_id', 'id'))
+        stock_details = [detail for detail in details if not detail.prod.is_service]
         product_map = Product.objects.select_for_update().in_bulk(
-            sorted({detail.prod_id for detail in details})
+            sorted({detail.prod_id for detail in stock_details})
         )
 
-        for detail in details:
+        for detail in stock_details:
             product = product_map[detail.prod_id]
-            stock_before = product.stock
-            product.stock += detail.cant
             product.cost = detail.cost
-            product.save(update_fields=['stock', 'cost'])
+            product._skip_inventory_movement = True
+            models.Model.save(product, update_fields=['cost', 'date_updated'])
 
             InventoryMovement.objects.create(
                 organization=self.organization,
                 product=product,
                 movement_type='purchase',
                 quantity=detail.cant,
-                stock_before=stock_before,
-                stock_after=product.stock,
                 description=f'Entrada por compra #{self.id}',
                 reference=f'PUR-{self.id}',
                 user_creation=user,
@@ -743,27 +876,19 @@ class Purchase(AuditModel):
             raise ValidationError('Solo se pueden anular compras confirmadas.')
 
         details = list(self.details.select_related('prod').order_by('prod_id', 'id'))
+        stock_details = [detail for detail in details if not detail.prod.is_service]
         product_map = Product.objects.select_for_update().in_bulk(
-            sorted({detail.prod_id for detail in details})
+            sorted({detail.prod_id for detail in stock_details})
         )
 
-        for detail in details:
+        for detail in stock_details:
             product = product_map[detail.prod_id]
-            stock_before = product.stock
-            if detail.cant > product.stock:
-                raise ValidationError(
-                    f'No se puede anular la compra: stock insuficiente para {product.name}. Disponible: {product.stock}'
-                )
-            product.stock -= detail.cant
-            product.save(update_fields=['stock'])
 
             InventoryMovement.objects.create(
                 organization=self.organization,
                 product=product,
                 movement_type='purchase_cancel',
                 quantity=detail.cant,
-                stock_before=stock_before,
-                stock_after=product.stock,
                 description=f'Anulación compra #{self.id}',
                 reference=f'PUR-{self.id}-CAN',
                 user_creation=user,
@@ -1016,22 +1141,17 @@ class Sale(AuditModel):
 
         for detail in stock_details:
             product = product_map[detail.prod_id]
-            if detail.cant > product.stock:
+            if detail.cant > int(product.stock or 0):
                 raise ValidationError(f'Stock insuficiente para {product.name}. Disponible: {product.stock}')
 
         for detail in stock_details:
             product = product_map[detail.prod_id]
-            stock_before = product.stock
-            product.stock -= detail.cant
-            product.save(update_fields=['stock'])
 
             InventoryMovement.objects.create(
                 organization=self.organization,
                 product=product,
                 movement_type='sale',
                 quantity=detail.cant,
-                stock_before=stock_before,
-                stock_after=product.stock,
                 description=f'Salida por venta #{self.id}',
                 reference=f'SAL-{self.id}',
                 user_creation=user,
@@ -1073,17 +1193,12 @@ class Sale(AuditModel):
 
         for detail in stock_details:
             product = product_map[detail.prod_id]
-            stock_before = product.stock
-            product.stock += detail.cant
-            product.save(update_fields=['stock'])
 
             InventoryMovement.objects.create(
                 organization=self.organization,
                 product=product,
                 movement_type='sale_cancel',
                 quantity=detail.cant,
-                stock_before=stock_before,
-                stock_after=product.stock,
                 description=f'Anulación venta #{self.id}',
                 reference=f'SAL-{self.id}-CAN',
                 user_creation=user,

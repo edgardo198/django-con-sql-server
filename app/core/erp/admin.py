@@ -81,7 +81,17 @@ class CashMovementAdmin(admin.ModelAdmin):
 
 @admin.register(InventoryMovement)
 class InventoryMovementAdmin(admin.ModelAdmin):
-    list_display = ('id', 'organization', 'product', 'movement_type', 'quantity', 'stock_before', 'stock_after', 'date_joined')
+    list_display = (
+        'id',
+        'organization',
+        'product',
+        'movement_type',
+        'quantity',
+        'stock_delta',
+        'stock_before',
+        'stock_after',
+        'date_joined',
+    )
     list_filter = ('organization', 'movement_type')
     search_fields = ('product__name', 'reference', 'description')
     ordering = ('-date_joined', '-id')

@@ -13,7 +13,7 @@ class InventoryMovementListView(ERPTableListView):
         return super().get_queryset().select_related('product').order_by('-date_joined', '-id')
 
     def get_table_columns(self):
-        return ['Nro', 'Producto', 'Tipo', 'Cantidad', 'Stock anterior', 'Stock actual', 'Referencia', 'Fecha']
+        return ['Nro', 'Producto', 'Tipo', 'Cantidad', 'Delta', 'Stock anterior', 'Stock actual', 'Referencia', 'Fecha']
 
     def get_row_cells(self, obj):
         return [
@@ -21,6 +21,7 @@ class InventoryMovementListView(ERPTableListView):
             obj.product.name,
             obj.get_movement_type_display(),
             obj.quantity,
+            obj.stock_delta,
             obj.stock_before,
             obj.stock_after,
             obj.reference or '-',
