@@ -35,6 +35,7 @@ urlpatterns = [
     path('erp/supplier/delete/<int:pk>/', SupplierDeleteView.as_view(), name='supplier_delete'),
     path('erp/', include(('app.core.erp.urls', 'erp'), namespace='erp')),
     path('report/', include('app.core.reports.urls')),
+    path('sync/', include(('app.core.sync.urls', 'sync'), namespace='sync')),
     path('user/', include(('app.core.user.urls', 'user'), namespace='user')),
     path('user/organization/list/', OrganizationListView.as_view(), name='organization_list'),
     path('user/organization/switch/<int:pk>/', SwitchOrganizationView.as_view(), name='organization_switch'),

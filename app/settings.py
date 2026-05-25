@@ -80,6 +80,7 @@ INSTALLED_APPS = [
     'app.core.login',
     'app.core.user.apps.UserConfig',
     'app.core.reports',
+    'app.core.sync.apps.SyncConfig',
 ]
 
 MIDDLEWARE = [

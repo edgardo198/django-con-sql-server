@@ -1,6 +1,10 @@
 __pycache__/
 *.py[cod]
 *.sqlite3
+*.sqlite3.bak-*
+node_modules/
+npm-debug.log*
+dist/
 app/db.sqlite3
 venv/
 staticfiles/
@@ -8,5 +12,6 @@ media/
 test-results/
 tools/
 .env
+.env.local
 .idea/
 .vscode/

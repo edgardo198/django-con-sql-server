@@ -14,11 +14,20 @@ class Command(BaseCommand):
         parser.add_argument('--username', default=os.getenv('SUPERADMIN_USERNAME', 'superadmin'))
         parser.add_argument('--email', default=os.getenv('SUPERADMIN_EMAIL', 'superadmin@local.test'))
         parser.add_argument('--password', default=os.getenv('SUPERADMIN_PASSWORD'))
+        parser.add_argument(
+            '--if-empty',
+            action='store_true',
+            help='Solo crea el acceso inicial si aun no hay usuarios.',
+        )
 
     def handle(self, *args, **options):
         groups = ensure_role_groups()
         password = options['password'] or get_random_string(20)
         user_model = get_user_model()
+
+        if options['if_empty'] and user_model.objects.exists():
+            self.stdout.write(self.style.WARNING('Ya existen usuarios. Bootstrap omitido.'))
+            return
 
         user, created = user_model.objects.get_or_create(
             username=options['username'],

@@ -1,0 +1,14 @@
+{
+  "name": "erp-comercial-local",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Electron wrapper para ejecutar el ERP Django en modo local.",
+  "main": "electron/main.js",
+  "scripts": {
+    "electron": "node electron/start.js",
+    "electron:dev": "node electron/start.js"
+  },
+  "devDependencies": {
+    "electron": "^42.2.0"
+  }
+}
