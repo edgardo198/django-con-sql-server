@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from app.core.sync.models import (
+    SyncConfiguration,
     SyncConflict,
     SyncIdentity,
     SyncOutbox,
@@ -36,6 +37,12 @@ class SyncTombstoneAdmin(admin.ModelAdmin):
 class SyncStateAdmin(admin.ModelAdmin):
     list_display = ('remote_url', 'last_pull_at', 'last_push_at', 'updated_at')
     search_fields = ('remote_url', 'last_error')
+    readonly_fields = ('updated_at',)
+
+
+@admin.register(SyncConfiguration)
+class SyncConfigurationAdmin(admin.ModelAdmin):
+    list_display = ('key', 'remote_sync_enabled', 'remote_url', 'updated_by', 'updated_at')
     readonly_fields = ('updated_at',)
 
 

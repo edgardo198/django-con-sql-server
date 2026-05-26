@@ -34,6 +34,7 @@ urlpatterns = [
     path('erp/supplier/update/<int:pk>/', SupplierUpdateView.as_view(), name='supplier_update'),
     path('erp/supplier/delete/<int:pk>/', SupplierDeleteView.as_view(), name='supplier_delete'),
     path('erp/', include(('app.core.erp.urls', 'erp'), namespace='erp')),
+    path('backup/', include(('app.core.backup.urls', 'backup'), namespace='backup')),
     path('report/', include('app.core.reports.urls')),
     path('sync/', include(('app.core.sync.urls', 'sync'), namespace='sync')),
     path('user/', include(('app.core.user.urls', 'user'), namespace='user')),

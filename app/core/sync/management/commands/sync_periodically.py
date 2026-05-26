@@ -8,6 +8,8 @@ from django.core.management.base import BaseCommand, CommandError
 
 from app.core.sync.management.commands.sync_with_remote import normalize_remote_url
 from app.core.sync.models import SyncOutbox
+from app.core.sync.registry import get_outgoing_model_labels_for_current_node
+from app.core.sync.services import get_configured_remote_url, get_configured_sync_token, is_remote_sync_enabled
 
 
 def env_int(name, default):
@@ -35,24 +37,39 @@ class Command(BaseCommand):
         parser.add_argument('--max-runs', type=int, default=0, help='Cantidad maxima de ciclos exitosos. 0 = infinito.')
 
     def handle(self, *args, **options):
-        remote_url = options['remote']
-        token = options['token']
-        if not remote_url:
-            raise CommandError('Debe configurar SYNC_REMOTE_URL o pasar --remote.')
-        if not token:
-            raise CommandError('Debe configurar SYNC_API_TOKEN o pasar --token.')
-
-        remote_url = normalize_remote_url(remote_url)
+        remote_url = options['remote'] or get_configured_remote_url()
+        token = options['token'] or get_configured_sync_token()
         interval = max(options['interval'], 60)
         retry = max(options['retry'], 15)
         debounce = max(options['debounce'], 2)
         runs = 0
         next_due_at = 0
 
-        self.stdout.write('Sincronizacion periodica activa contra {}'.format(remote_url))
+        if remote_url:
+            remote_url = normalize_remote_url(remote_url)
+
+        self.stdout.write('Sincronizacion periodica preparada.')
 
         while True:
-            pending_count = SyncOutbox.objects.filter(processed_at__isnull=True).count()
+            if not is_remote_sync_enabled():
+                if options['once']:
+                    self.stdout.write('Sincronizacion remota pausada desde la tienda.')
+                    break
+                self.stdout.write('Sincronizacion remota pausada desde la tienda. Revisando de nuevo en {}s.'.format(interval))
+                self.sleep(interval)
+                continue
+
+            remote_url = remote_url or get_configured_remote_url()
+            token = token or get_configured_sync_token()
+            if not remote_url:
+                raise CommandError('Debe configurar SYNC_REMOTE_URL o pasar --remote.')
+            if not token:
+                raise CommandError('Debe configurar SYNC_API_TOKEN o pasar --token.')
+
+            pending_count = SyncOutbox.objects.filter(
+                processed_at__isnull=True,
+                model_label__in=get_outgoing_model_labels_for_current_node(),
+            ).count()
             interval_due = time.monotonic() >= next_due_at
             if not pending_count and not interval_due:
                 wait_seconds = min(debounce, max(1, int(next_due_at - time.monotonic())))
@@ -109,8 +126,12 @@ class Command(BaseCommand):
                 timeout=timeout,
             )
             response.raise_for_status()
+            payload = response.json()
+            if payload.get('sync_enabled') is False:
+                self.stdout.write(self.style.WARNING('Render tiene la sincronizacion pausada desde tienda.'))
+                return False
             return True
-        except requests.RequestException as exc:
+        except (ValueError, requests.RequestException) as exc:
             self.stdout.write(self.style.WARNING('Chequeo de conexion fallo: {}'.format(exc)))
             return False
 

@@ -1,0 +1,522 @@
+{% extends 'layout.html' %}
+
+{% block head %}
+    <style>
+        .sync-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .sync-toolbar-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .sync-toolbar-actions .btn,
+        .sync-now-form .btn,
+        .sync-toggle-form .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            min-height: 38px;
+            white-space: nowrap;
+            margin: 0;
+        }
+
+        .sync-role-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 6px 10px;
+            background: #fff;
+            color: #1f2937;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .sync-summary {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .sync-summary-item,
+        .sync-panel,
+        .sync-flow-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #fff;
+        }
+
+        .sync-summary-item {
+            padding: 12px;
+        }
+
+        .sync-summary-label {
+            display: block;
+            color: #6c757d;
+            font-size: 12px;
+            line-height: 1.2;
+        }
+
+        .sync-summary-value {
+            display: block;
+            margin-top: 5px;
+            color: #212529;
+            font-size: 20px;
+            font-weight: 800;
+            line-height: 1.1;
+            overflow-wrap: anywhere;
+        }
+
+        .sync-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+            gap: 14px;
+            align-items: start;
+        }
+
+        .sync-panel {
+            margin-bottom: 14px;
+        }
+
+        .sync-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 11px 13px;
+        }
+
+        .sync-panel-title {
+            margin: 0;
+            color: #111827;
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .sync-panel-body {
+            padding: 13px;
+        }
+
+        .sync-flow {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .sync-flow-item {
+            padding: 12px;
+        }
+
+        .sync-flow-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 7px;
+            color: #111827;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .sync-flow-desc {
+            margin: 0;
+            color: #6c757d;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        .sync-model-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .sync-model-list li {
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 5px 8px;
+            background: #f9fafb;
+            color: #374151;
+            font-size: 12px;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+
+        .sync-empty {
+            padding: 22px;
+            text-align: center;
+            color: #6c757d;
+            border: 1px dashed #ced4da;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+
+        .sync-table {
+            margin-bottom: 0;
+        }
+
+        .sync-table th,
+        .sync-table td {
+            vertical-align: middle;
+        }
+
+        .sync-config-form {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .sync-config-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .sync-config-actions .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 991.98px) {
+            .sync-summary,
+            .sync-grid,
+            .sync-flow {
+                grid-template-columns: 1fr;
+            }
+
+            .sync-toolbar {
+                align-items: stretch;
+            }
+
+            .sync-toolbar-actions,
+            .sync-toolbar-actions .btn,
+            .sync-now-form,
+            .sync-now-form .btn,
+            .sync-toggle-form,
+            .sync-toggle-form .btn,
+            .sync-config-actions .btn {
+                width: 100%;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="sync-toolbar">
+        <div>
+            <h4 class="mb-1">{{ title }}</h4>
+            <span class="sync-role-badge">
+                <i class="fas fa-network-wired"></i> {{ node_role_label }}
+            </span>
+            <span class="sync-role-badge">
+                <i class="fas fa-power-off"></i> Sync {{ remote_sync_status_label }}
+            </span>
+        </div>
+        <div class="sync-toolbar-actions">
+            <a href="{{ panel_url }}" class="btn btn-success btn-flat">
+                <i class="fas fa-sync"></i> Actualizar
+            </a>
+            <form method="post" class="sync-toggle-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="toggle_sync">
+                <input type="hidden" name="enabled" value="{{ remote_sync_toggle_value }}">
+                <button type="submit" class="btn {% if remote_sync_enabled %}btn-warning{% else %}btn-success{% endif %} btn-flat">
+                    <i class="fas {% if remote_sync_enabled %}fa-pause{% else %}fa-play{% endif %}"></i> {{ remote_sync_toggle_label }}
+                </button>
+            </form>
+            <form method="post" class="sync-now-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="sync_now">
+                <button type="submit" class="btn btn-primary btn-flat" {% if not remote_sync_enabled %}disabled{% endif %}>
+                    <i class="fas fa-cloud-upload-alt"></i> Sincronizar ahora
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="sync-summary">
+        <div class="sync-summary-item">
+            <span class="sync-summary-label">Cola pendiente</span>
+            <span class="sync-summary-value">{{ pending_count }}</span>
+        </div>
+        <div class="sync-summary-item">
+            <span class="sync-summary-label">Fallidos</span>
+            <span class="sync-summary-value">{{ failed_count }}</span>
+        </div>
+        <div class="sync-summary-item">
+            <span class="sync-summary-label">Sync remoto</span>
+            <span class="sync-summary-value">{{ remote_sync_status_label }}</span>
+        </div>
+        <div class="sync-summary-item">
+            <span class="sync-summary-label">Conflictos abiertos</span>
+            <span class="sync-summary-value">{{ unresolved_conflict_count }}</span>
+        </div>
+    </div>
+
+    <div class="sync-panel">
+        <div class="sync-panel-header">
+            <h5 class="sync-panel-title"><i class="fas fa-route"></i> Flujo de datos</h5>
+        </div>
+        <div class="sync-panel-body">
+            <div class="sync-flow">
+                {% for group in model_groups %}
+                    <div class="sync-flow-item">
+                        <div class="sync-flow-title">
+                            <i class="fas fa-exchange-alt"></i> {{ group.title }}
+                        </div>
+                        <p class="sync-flow-desc">{{ group.description }}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="sync-grid">
+        <div>
+            <div class="sync-panel">
+                <div class="sync-panel-header">
+                    <h5 class="sync-panel-title"><i class="fas fa-arrow-up"></i> Este nodo envia</h5>
+                </div>
+                <div class="sync-panel-body">
+                    <ul class="sync-model-list">
+                        {% for label in outgoing_models %}
+                            <li>{{ label }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <div class="sync-panel">
+                <div class="sync-panel-header">
+                    <h5 class="sync-panel-title"><i class="fas fa-stream"></i> Cola reciente</h5>
+                    <span class="badge badge-secondary">{{ pending_count }}</span>
+                </div>
+                <div class="sync-panel-body">
+                    {% if recent_pending %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover sync-table">
+                                <thead>
+                                <tr>
+                                    <th>Modelo</th>
+                                    <th>Accion</th>
+                                    <th>Creado</th>
+                                    <th>Intentos</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for item in recent_pending %}
+                                    <tr>
+                                        <td>{{ item.model_label }}</td>
+                                        <td>{{ item.get_action_display }}</td>
+                                        <td>{{ item.created_at|date:'Y-m-d H:i' }}</td>
+                                        <td>{{ item.attempt_count }}</td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="sync-empty">No hay cambios pendientes.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="sync-panel">
+                <div class="sync-panel-header">
+                    <h5 class="sync-panel-title"><i class="fas fa-history"></i> Ultimas sincronizaciones</h5>
+                </div>
+                <div class="sync-panel-body">
+                    {% if states %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover sync-table">
+                                <thead>
+                                <tr>
+                                    <th>Servidor</th>
+                                    <th>Ultima descarga</th>
+                                    <th>Ultima subida</th>
+                                    <th>Estado</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for state in states %}
+                                    <tr>
+                                        <td>{{ state.remote_url }}</td>
+                                        <td>{{ state.last_pull_at|date:'Y-m-d H:i'|default:'-' }}</td>
+                                        <td>{{ state.last_push_at|date:'Y-m-d H:i'|default:'-' }}</td>
+                                        <td>
+                                            {% if state.last_error %}
+                                                <span class="badge badge-danger">Error</span>
+                                            {% else %}
+                                                <span class="badge badge-success">OK</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="sync-empty">Sin ejecuciones registradas.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="sync-panel">
+                <div class="sync-panel-header">
+                    <h5 class="sync-panel-title"><i class="fas fa-arrow-down"></i> Este nodo recibe</h5>
+                </div>
+                <div class="sync-panel-body">
+                    <ul class="sync-model-list">
+                        {% for label in incoming_models %}
+                            <li>{{ label }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <div class="sync-panel">
+                <div class="sync-panel-header">
+                    <h5 class="sync-panel-title"><i class="fas fa-cog"></i> Configuracion</h5>
+                </div>
+                <div class="sync-panel-body">
+                    <form method="post" class="sync-config-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="save_connection">
+                        <div class="form-group mb-0">
+                            <label>URL de Render</label>
+                            <input type="url" name="remote_url" class="form-control" value="{{ remote_url }}" placeholder="https://tu-app.onrender.com">
+                        </div>
+                        <div class="form-group mb-0">
+                            <label>Token</label>
+                            <input type="password" name="sync_token" class="form-control" placeholder="{% if token_configured %}Token guardado{% else %}Pegar token de Render{% endif %}" autocomplete="new-password">
+                        </div>
+                        <div class="sync-config-actions">
+                            <button type="submit" class="btn btn-info btn-flat">
+                                <i class="fas fa-save"></i> Guardar conexion
+                            </button>
+                        </div>
+                    </form>
+                    <table class="table table-sm sync-table">
+                        <tbody>
+                        <tr>
+                            <th>Remoto</th>
+                            <td>{{ remote_url|default:'No configurado' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Token</th>
+                            <td>
+                                {% if token_configured %}
+                                    <span class="badge badge-success">Configurado</span>
+                                {% else %}
+                                    <span class="badge badge-danger">Pendiente</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Sync tienda</th>
+                            <td>
+                                {% if remote_sync_enabled %}
+                                    <span class="badge badge-success">Activo</span>
+                                {% else %}
+                                    <span class="badge badge-warning">Pausado</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Modo nube</th>
+                            <td>
+                                {% if cloud_backup_enabled %}
+                                    <span class="badge badge-success">Permitido</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">Desactivado por entorno</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Automatico</th>
+                            <td>{{ interval_seconds }}s</td>
+                        </tr>
+                        <tr>
+                            <th>Reintento</th>
+                            <td>{{ retry_seconds }}s</td>
+                        </tr>
+                        <tr>
+                            <th>Bloqueo</th>
+                            <td>
+                                {% if active_lock %}
+                                    <span class="badge badge-warning">En ejecucion</span>
+                                {% else %}
+                                    <span class="badge badge-success">Libre</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="sync-panel">
+                <div class="sync-panel-header">
+                    <h5 class="sync-panel-title"><i class="fas fa-exclamation-triangle"></i> Conflictos</h5>
+                    <span class="badge badge-secondary">{{ unresolved_conflict_count }}</span>
+                </div>
+                <div class="sync-panel-body">
+                    {% if unresolved_conflicts %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover sync-table">
+                                <thead>
+                                <tr>
+                                    <th>Modelo</th>
+                                    <th>Fecha</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for conflict in unresolved_conflicts %}
+                                    <tr>
+                                        <td>{{ conflict.model_label }}</td>
+                                        <td>{{ conflict.created_at|date:'Y-m-d H:i' }}</td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="sync-empty">Sin conflictos abiertos.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

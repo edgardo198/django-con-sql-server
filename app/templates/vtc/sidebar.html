@@ -35,6 +35,8 @@
 {% if not inventorymovement_list_url %}
     {% url 'inventorymovement_list' as inventorymovement_list_url %}
 {% endif %}
+{% url 'backup:local' as backup_local_url %}
+{% url 'sync:panel' as sync_panel_url %}
 <aside class="main-sidebar sidebar-light-primary elevation-4">
     {% with current_organization=request.user.get_current_organization %}
         <a href="{% url 'erp:dashboard' %}" class="brand-link">
@@ -193,6 +195,20 @@
                         <a href="{% url 'user:user_list' %}" class="nav-link">
                             <i class="nav-icon fas fa-user-friends"></i>
                             <p>Usuarios</p>
+                        </a>
+                    </li>
+                {% endif %}
+                {% if request.user.is_superuser %}
+                    <li class="nav-item">
+                        <a href="{{ backup_local_url }}" class="nav-link">
+                            <i class="nav-icon fas fa-database"></i>
+                            <p>Respaldos locales</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ sync_panel_url }}" class="nav-link">
+                            <i class="nav-icon fas fa-cloud"></i>
+                            <p>Estado de sync</p>
                         </a>
                     </li>
                 {% endif %}

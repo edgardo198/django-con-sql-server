@@ -75,6 +75,31 @@ class SyncState(models.Model):
         return self.remote_url
 
 
+class SyncConfiguration(models.Model):
+    DEFAULT_KEY = 'default'
+
+    id = models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
+    key = models.CharField(max_length=40, unique=True, default=DEFAULT_KEY)
+    remote_sync_enabled = models.BooleanField(default=True)
+    remote_url = models.URLField(blank=True)
+    sync_token = models.CharField(max_length=255, blank=True)
+    updated_by = models.ForeignKey(
+        'user.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sync_configuration_updates',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configuracion de sincronizacion'
+        verbose_name_plural = 'Configuraciones de sincronizacion'
+
+    def __str__(self):
+        return 'Sincronizacion remota {}'.format('activa' if self.remote_sync_enabled else 'pausada')
+
+
 class SyncRunLock(models.Model):
     id = models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
     name = models.CharField(max_length=80, unique=True)

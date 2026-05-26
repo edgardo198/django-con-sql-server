@@ -1,0 +1,275 @@
+{% extends 'layout.html' %}
+
+{% block head %}
+    <style>
+        .backup-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .backup-summary {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .backup-summary-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 12px;
+            background: #fff;
+        }
+
+        .backup-summary-label {
+            display: block;
+            color: #6c757d;
+            font-size: 12px;
+            line-height: 1.2;
+        }
+
+        .backup-summary-value {
+            display: block;
+            margin-top: 4px;
+            color: #212529;
+            font-weight: 700;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+
+        .backup-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .backup-actions .btn,
+        .backup-create-actions .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            margin: 0;
+            white-space: nowrap;
+        }
+
+        .backup-create-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .backup-restore-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(160px, .7fr) auto auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .backup-empty {
+            padding: 24px;
+            text-align: center;
+            color: #6c757d;
+            border: 1px dashed #ced4da;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+
+        @media (max-width: 991.98px) {
+            .backup-summary,
+            .backup-restore-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .backup-create-actions,
+            .backup-actions {
+                justify-content: stretch;
+            }
+
+            .backup-actions .btn,
+            .backup-create-actions .btn {
+                width: 100%;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="backup-toolbar">
+        <div>
+            <h4 class="mb-0">{{ title }}</h4>
+            <small class="text-muted">{{ backup_dir }}</small>
+        </div>
+        <a href="{{ list_url }}" class="btn btn-success btn-flat">
+            <i class="fas fa-sync"></i> Actualizar
+        </a>
+    </div>
+
+    <div class="backup-summary">
+        <div class="backup-summary-item">
+            <span class="backup-summary-label">Respaldos guardados</span>
+            <span class="backup-summary-value">{{ total_backups }}</span>
+        </div>
+        <div class="backup-summary-item">
+            <span class="backup-summary-label">Ultimo respaldo</span>
+            <span class="backup-summary-value">
+                {% if latest_backup %}{{ latest_backup.modified_at|date:'Y-m-d H:i' }}{% else %}Sin respaldos{% endif %}
+            </span>
+        </div>
+        <div class="backup-summary-item">
+            <span class="backup-summary-label">Directorio</span>
+            <span class="backup-summary-value">{{ backup_dir }}</span>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-5">
+            <form method="post" class="card card-dark">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-save"></i> Crear respaldo</h3>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label>Etiqueta:</label>
+                        <input type="text" name="label" class="form-control" maxlength="60" placeholder="Ej. cierre-dia">
+                    </div>
+                    <div class="form-group">
+                        <label>Retener ultimos:</label>
+                        <input type="number" name="keep" class="form-control" value="14" min="0" step="1">
+                    </div>
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" name="include_media" class="custom-control-input" id="includeMedia" checked>
+                        <label class="custom-control-label" for="includeMedia">Incluir archivos media</label>
+                    </div>
+                </div>
+                <div class="card-footer backup-create-actions">
+                    <button type="submit" class="btn btn-primary btn-flat">
+                        <i class="fas fa-plus"></i> Crear respaldo
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-lg-7">
+            <form method="post" class="card card-warning">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="restore">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-history"></i> Restaurar respaldo</h3>
+                </div>
+                <div class="card-body">
+                    <div class="backup-restore-grid">
+                        <div class="form-group mb-lg-0">
+                            <label>Archivo:</label>
+                            <select name="filename" class="form-control" {% if not backups %}disabled{% endif %}>
+                                {% for backup in backups %}
+                                    <option value="{{ backup.filename }}">{{ backup.filename }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group mb-lg-0">
+                            <label>Confirmacion:</label>
+                            <input type="text" name="confirmation" class="form-control" placeholder="RESTAURAR" {% if not backups %}disabled{% endif %}>
+                        </div>
+                        <div class="custom-control custom-checkbox mb-lg-2">
+                            <input type="checkbox" name="restore_media" class="custom-control-input" id="restoreMedia" {% if not backups %}disabled{% endif %}>
+                            <label class="custom-control-label" for="restoreMedia">Media</label>
+                        </div>
+                        <button type="submit" class="btn btn-warning btn-flat" {% if not backups %}disabled{% endif %}>
+                            <i class="fas fa-undo"></i> Restaurar
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="card card-dark">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-archive"></i> Archivos disponibles</h3>
+                </div>
+                <div class="card-body">
+                    {% if backups %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover">
+                                <thead>
+                                <tr>
+                                    <th>Archivo</th>
+                                    <th>Fecha</th>
+                                    <th>Tamano</th>
+                                    <th>Media</th>
+                                    <th>Acciones</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for backup in backups %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ backup.filename }}</strong><br>
+                                            <small class="text-muted">{{ backup.database_name }}</small>
+                                        </td>
+                                        <td>{{ backup.modified_at|date:'Y-m-d H:i' }}</td>
+                                        <td>{{ backup.size_label }}</td>
+                                        <td>
+                                            {% if backup.contains_media %}
+                                                <span class="badge badge-success">{{ backup.media_files }}</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">No</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="backup-actions">
+                                                <a href="{% url 'backup:download' backup.filename %}" class="btn btn-info btn-xs btn-flat">
+                                                    <i class="fas fa-download"></i> Descargar
+                                                </a>
+                                                <form method="post" class="d-inline backup-delete-form">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="delete">
+                                                    <input type="hidden" name="filename" value="{{ backup.filename }}">
+                                                    <button type="submit" class="btn btn-danger btn-xs btn-flat">
+                                                        <i class="fas fa-trash"></i> Eliminar
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="backup-empty">
+                            <i class="fas fa-archive fa-2x mb-2"></i>
+                            <div>No hay respaldos locales guardados.</div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block javascript %}
+    <script>
+        $('.backup-delete-form').on('submit', function (e) {
+            if (!confirm('Eliminar este respaldo local?')) {
+                e.preventDefault();
+            }
+        });
+    </script>
+{% endblock %}

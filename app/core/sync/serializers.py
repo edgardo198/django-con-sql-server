@@ -16,10 +16,11 @@ from app.core.sync.context import suppress_sync_outbox
 from app.core.sync.models import SyncConflict, SyncIdentity, SyncOutbox, SyncTombstone
 from app.core.sync.registry import (
     PARENT_UPDATED_FIELDS,
-    SYNC_MODEL_LABELS,
     get_model_label,
+    get_outgoing_model_labels_for_current_node,
     get_sync_model,
-    get_sync_models,
+    get_sync_models_for_labels,
+    is_incoming_model_label,
     is_sync_model,
 )
 
@@ -282,6 +283,9 @@ def apply_user_m2m(obj, m2m):
 
 def apply_record(record):
     model_label = (record.get('model') or '').lower()
+    if not is_incoming_model_label(model_label):
+        return {'status': 'ignored', 'reason': 'Modelo no permitido para este nodo: {}'.format(model_label)}
+
     model = get_sync_model(model_label)
     if model is None:
         return {'status': 'ignored', 'reason': 'Modelo no sincronizable: {}'.format(model_label)}
@@ -413,11 +417,12 @@ def queryset_changed_since(model, since):
 
 def collect_pull_records(since=None, offset=0, limit=None):
     records = []
-    for model in get_sync_models():
+    outgoing_labels = get_outgoing_model_labels_for_current_node()
+    for model in get_sync_models_for_labels(outgoing_labels):
         for obj in queryset_changed_since(model, since).order_by('pk'):
             records.append(serialize_instance(obj))
 
-    tombstones = SyncTombstone.objects.all()
+    tombstones = SyncTombstone.objects.filter(model_label__in=outgoing_labels)
     if since is not None:
         tombstones = tombstones.filter(deleted_at__gt=since)
     for tombstone in tombstones.order_by('deleted_at', 'pk'):
@@ -467,9 +472,10 @@ def serialize_outbox_item(item):
 
 def get_pending_outbox(limit=250):
     fetch_limit = max(limit * 5, limit)
+    outgoing_labels = get_outgoing_model_labels_for_current_node()
     pending_items = list(
         SyncOutbox.objects
-        .filter(processed_at__isnull=True)
+        .filter(processed_at__isnull=True, model_label__in=outgoing_labels)
         .order_by('created_at', 'id')[:fetch_limit]
     )
 

@@ -9,6 +9,7 @@ Mantener una base principal en Render y una base PostgreSQL local por equipo/ofi
 ```text
 APP_EDITION=cloud_backup
 CLOUD_BACKUP_ENABLED=true
+SYNC_NODE_ROLE=central
 SYNC_API_TOKEN=clave-larga-secreta
 DJANGO_USE_DATABASE_MEDIA_STORAGE=true
 DJANGO_SERVE_MEDIA=true
@@ -21,6 +22,7 @@ DJANGO_SERVE_MEDIA=true
 ```bash
 set APP_EDITION=cloud_backup
 set CLOUD_BACKUP_ENABLED=true
+set SYNC_NODE_ROLE=local
 set DJANGO_DB_ENGINE=postgresql
 set POSTGRES_NAME=Tienda
 set POSTGRES_HOST=127.0.0.1
@@ -62,6 +64,46 @@ Si `CLOUD_BACKUP_ENABLED=false`, Electron trabaja como producto local y no inten
 4. Confirmar que el login local funciona con el usuario de Render.
 5. Trabajar offline si se cae la red.
 6. Al volver la red, dejar Electron abierto para que suba la cola `SyncOutbox`.
+
+## Direccion de datos
+
+Cada caja usa siempre el servidor y la base local. Render funciona como panel central y respaldo en nube.
+
+- Local sube a Render: ventas, compras, pagos, cierres de caja, movimientos de caja e inventario.
+- Render baja a local: tiendas, productos, precios, categorias, proveedores, impuestos, datos fiscales, usuarios y archivos media.
+- Clientes sincronizan en ambos sentidos.
+- Inventario se conserva por tienda usando la relacion `organization`.
+- Todos los registros sincronizados usan `SyncIdentity.sync_uuid` y la cola `SyncOutbox`.
+
+El rol se define con `SYNC_NODE_ROLE`. Usa `local` en cajas y `central` en Render. Si no se configura, Render se detecta por la variable `RENDER`; fuera de Render el rol por defecto es `local`.
+
+## Panel de estado
+
+Los superusuarios pueden revisar la sincronizacion en:
+
+```text
+/sync/panel/
+```
+
+El panel muestra rol del nodo, cola pendiente, fallos, conflictos, ultima descarga/subida y el boton **Sincronizar ahora**. Tambien incluye la seccion **Configuracion**, donde el superusuario puede guardar la URL de Render y el token sin editar archivos `.env`.
+
+Datos que puede guardar el superusuario desde tienda:
+
+- URL de Render, por ejemplo `https://tu-app.onrender.com`.
+- Token de sincronizacion, el mismo `SYNC_API_TOKEN` configurado en Render.
+
+El token se guarda en la base local y no se vuelve a mostrar en pantalla. Si el campo queda vacio al guardar despues, se conserva el token existente.
+
+El panel tambien incluye el boton **Activar/Desactivar sincronizacion**, disponible solo para superusuarios desde la interfaz de tienda.
+
+Cuando el superusuario pausa la sincronizacion:
+
+- El boton **Sincronizar ahora** queda bloqueado.
+- `sync_with_remote` sale sin subir ni bajar datos.
+- `sync_pending_count` devuelve `0`, para que Electron no despierte la sincronizacion por cola pendiente.
+- `sync_periodically` queda esperando y revisa de nuevo cada `SYNC_INTERVAL_SECONDS`.
+
+Las tareas automaticas siguen usando `SYNC_INTERVAL_SECONDS`; Electron revisa la cola cada pocos segundos y ejecuta una sincronizacion cuando hay cambios pendientes y la sincronizacion esta activa.
 
 ## Verificaciones manuales
 

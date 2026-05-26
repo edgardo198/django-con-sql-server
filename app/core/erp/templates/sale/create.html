@@ -39,6 +39,153 @@
             font-size: 12px;
             line-height: 1.2;
         }
+
+        .sale-mode-selector {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .sale-mode-option {
+            position: relative;
+            display: block;
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .sale-mode-option input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .sale-mode-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            min-height: 0;
+            padding: 11px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            background: #fff;
+            transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+        }
+
+        .sale-mode-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 14px;
+            color: #212529;
+            line-height: 1.2;
+        }
+
+        .sale-mode-title i {
+            width: 16px;
+            text-align: center;
+        }
+
+        .sale-mode-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 34px;
+            width: 34px;
+            height: 34px;
+            border-radius: 6px;
+            color: #007bff;
+            background: #eaf4ff;
+        }
+
+        .sale-mode-text {
+            min-width: 0;
+        }
+
+        .sale-mode-copy {
+            display: block;
+            margin-top: 4px;
+            color: #6c757d;
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .sale-mode-option input:checked + .sale-mode-content {
+            border-color: #007bff;
+            background: #f4f9ff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, .12);
+        }
+
+        .sale-mode-option input:focus + .sale-mode-content {
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, .2);
+        }
+
+        .sale-client-section.is-disabled {
+            display: none;
+        }
+
+        .sale-client-control {
+            display: flex;
+            align-items: stretch;
+            gap: 8px;
+        }
+
+        .sale-client-select {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .sale-client-control .btn {
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+
+        .sale-actions-footer {
+            display: flex;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .sale-actions {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .sale-actions .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            min-width: 160px;
+            min-height: 40px;
+            margin: 0;
+            white-space: nowrap;
+        }
+
+        .sale-actions .btn i {
+            margin: 0;
+        }
+
+        @media (max-width: 1199.98px) {
+            .sale-client-control {
+                flex-direction: column;
+            }
+
+            .sale-client-control .btn {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            .sale-actions .btn {
+                width: 100%;
+                min-width: 0;
+                white-space: normal;
+            }
+        }
     </style>
     <script src="{% static 'sale/js/form.js' %}"></script>
 {% endblock %}
@@ -118,9 +265,34 @@
                                     </div>
                                 {% endif %}
                                 <div class="form-group">
+                                    <label>Modo de venta:</label>
+                                    <div class="sale-mode-selector" role="radiogroup" aria-label="Modo de venta">
+                                        <label class="sale-mode-option">
+                                            <input type="radio" name="sale_mode" value="quick" {% if sale_initial_mode == 'quick' %}checked{% endif %}>
+                                            <span class="sale-mode-content">
+                                                <span class="sale-mode-icon"><i class="fas fa-bolt"></i></span>
+                                                <span class="sale-mode-text">
+                                                    <span class="sale-mode-title">Venta rapida</span>
+                                                    <span class="sale-mode-copy">Usa Consumidor Final y no pide datos del cliente.</span>
+                                                </span>
+                                            </span>
+                                        </label>
+                                        <label class="sale-mode-option">
+                                            <input type="radio" name="sale_mode" value="customer_required" {% if sale_initial_mode == 'customer_required' %}checked{% endif %}>
+                                            <span class="sale-mode-content">
+                                                <span class="sale-mode-icon"><i class="fas fa-user-check"></i></span>
+                                                <span class="sale-mode-text">
+                                                    <span class="sale-mode-title">Venta con cliente</span>
+                                                    <span class="sale-mode-copy">Para facturas, credito o transacciones grandes.</span>
+                                                </span>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-group sale-client-section">
                                     <label>Cliente:</label>
-                                    <div class="d-flex">
-                                        <div class="flex-grow-1 mr-2">
+                                    <div class="sale-client-control">
+                                        <div class="sale-client-select">
                                             {{ form.cli }}
                                         </div>
                                         <button type="button" class="btn btn-success btn-flat" data-toggle="modal" data-target="#modalClient">
@@ -182,16 +354,18 @@
                     </div>
                 </div>
             </div>
-            <div class="card-footer">
-                <button type="submit" class="btn btn-primary btn-flat">
-                    <i class="fas fa-save"></i> Guardar registro
-                </button>
-                <button type="button" class="btn btn-success btn-flat" id="btnSaveAndPrint">
-                    <i class="fas fa-print"></i> Guardar e imprimir ticket
-                </button>
-                <a href="{{ list_url }}" class="btn btn-danger btn-flat">
-                    <i class="fas fa-times"></i> Cancelar
-                </a>
+            <div class="card-footer sale-actions-footer">
+                <div class="sale-actions">
+                    <button type="submit" class="btn btn-primary btn-flat">
+                        <i class="fas fa-save"></i> Guardar
+                    </button>
+                    <button type="button" class="btn btn-success btn-flat" id="btnSaveAndPrint">
+                        <i class="fas fa-print"></i> Guardar e imprimir
+                    </button>
+                    <a href="{{ list_url }}" class="btn btn-danger btn-flat">
+                        <i class="fas fa-times"></i> Cancelar
+                    </a>
+                </div>
             </div>
         </div>
     </form>

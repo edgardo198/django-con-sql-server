@@ -7,7 +7,7 @@ from django.utils import timezone
 from app.core.sync.context import is_sync_suppressed
 from app.core.sync.models import SyncIdentity, SyncOutbox, SyncTombstone
 from app.core.sync.notifier import notify_sync_required
-from app.core.sync.registry import get_model_label, is_sync_model
+from app.core.sync.registry import get_model_label, is_outgoing_model_label, is_sync_model
 
 
 def get_or_create_identity(instance):
@@ -24,6 +24,9 @@ def queue_instance(instance):
         return
 
     identity = get_or_create_identity(instance)
+    if not is_outgoing_model_label(identity.model_label):
+        return
+
     SyncOutbox.objects.create(
         model_label=identity.model_label,
         object_id=identity.object_id,
@@ -48,6 +51,9 @@ def queue_deleted_instance(sender, instance, **kwargs):
         return
 
     identity = get_or_create_identity(instance)
+    if not is_outgoing_model_label(identity.model_label):
+        return
+
     deleted_at = timezone.now()
     SyncTombstone.objects.update_or_create(
         model_label=identity.model_label,

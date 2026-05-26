@@ -355,6 +355,10 @@ class ERPDashboardAndReportsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'sale-product-search')
         self.assertContains(response, 'sale-barcode-input')
+        self.assertContains(response, 'name="sale_mode" value="quick"')
+        self.assertContains(response, 'name="sale_mode" value="customer_required"')
+        self.assertContains(response, 'Venta rapida')
+        self.assertContains(response, 'Venta con cliente')
         self.assertContains(response, 'sale/js/form.js')
 
     def test_sale_scan_product_finds_active_product_by_barcode(self):
@@ -1325,6 +1329,34 @@ class ERPDashboardAndReportsTests(TestCase):
             response.json()['error'],
             'Debe seleccionar un cliente antes de registrar la venta.',
         )
+
+    def test_quick_sale_without_client_uses_walk_in_customer(self):
+        payload = {
+            'sale_mode': 'quick',
+            'cli': '',
+            'cash_session': '',
+            'document_type': 'receipt',
+            'payment_term': 'cash',
+            'date_joined': timezone.localdate().strftime('%Y-%m-%d'),
+            'due_date': '',
+            'discount': '0.00',
+            'amount_paid': '25.00',
+            'observation': 'Venta rapida QA',
+            'products': [
+                {'id': self.product.id, 'cant': 1, 'price': '25.00', 'cost': '15.00', 'discount': '0.00'},
+            ],
+        }
+
+        response = self.client.post(
+            reverse('erp:sale_create'),
+            {'action': 'add', 'sale': json.dumps(payload)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('error', response.json())
+        sale = Sale.objects.get(organization=self.organization, observation='Venta rapida QA')
+        self.assertEqual(sale.cli.get_full_name(), 'Consumidor Final')
+        self.assertEqual(sale.payment_term, 'cash')
 
     def test_sale_product_search_is_scoped_and_accepts_flexible_terms(self):
         self.product.name = 'Leche Entera Premium 1 Litro'

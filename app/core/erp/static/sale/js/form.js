@@ -31,6 +31,7 @@ function renderProductOption(product) {
 
 function getDefaultSaleItems() {
     return {
+        sale_mode: 'quick',
         cli: '',
         cash_session: '',
         document_type: 'invoice',
@@ -223,9 +224,31 @@ var saleDetail = {
 };
 
 $(function () {
+    function getSelectedSaleMode() {
+        return $('input[name="sale_mode"]:checked').val() || 'quick';
+    }
+
+    function applySaleMode() {
+        var isQuickSale = getSelectedSaleMode() === 'quick';
+        $('.sale-client-section').toggleClass('is-disabled', isQuickSale);
+        $('select[name="cli"]').prop('required', !isQuickSale);
+
+        if (isQuickSale) {
+            $('select[name="cli"]').val(null).trigger('change');
+            $('select[name="payment_term"]').val('cash').trigger('change');
+            $('input[name="due_date"]').val('');
+        }
+    }
+
     $('.select2').select2({
         theme: 'bootstrap4',
         language: 'es'
+    });
+
+    applySaleMode();
+
+    $('input[name="sale_mode"]').on('change', function () {
+        applySaleMode();
     });
 
     saleDetail.items.products = window.saleInitialDetail || [];
@@ -361,6 +384,7 @@ $(function () {
     function clearSaleForm() {
         saleDetail.items = getDefaultSaleItems();
         $('#saleForm')[0].reset();
+        applySaleMode();
         $('select[name="cli"]').val(null).trigger('change');
         $('select[name="cash_session"]').val(null).trigger('change');
         $('select[name="document_type"]').val('invoice').trigger('change');
@@ -417,12 +441,14 @@ $(function () {
     }
 
     function buildSalePayload(printAfterSave) {
-        saleDetail.items.cli = $('select[name="cli"]').val();
+        var saleMode = getSelectedSaleMode();
+        saleDetail.items.sale_mode = saleMode;
+        saleDetail.items.cli = saleMode === 'quick' ? '' : $('select[name="cli"]').val();
         saleDetail.items.cash_session = $('select[name="cash_session"]').val();
         saleDetail.items.document_type = $('select[name="document_type"]').val();
-        saleDetail.items.payment_term = $('select[name="payment_term"]').val();
+        saleDetail.items.payment_term = saleMode === 'quick' ? 'cash' : $('select[name="payment_term"]').val();
         saleDetail.items.date_joined = $('input[name="date_joined"]').val();
-        saleDetail.items.due_date = $('input[name="due_date"]').val();
+        saleDetail.items.due_date = saleMode === 'quick' ? '' : $('input[name="due_date"]').val();
         saleDetail.items.discount = $('input[name="discount"]').val();
         saleDetail.items.amount_paid = $('input[name="amount_paid"]').val();
         saleDetail.items.observation = $('textarea[name="observation"]').val();
@@ -445,7 +471,7 @@ $(function () {
         }
 
         var selectedClient = $('select[name="cli"]').val();
-        if (!selectedClient) {
+        if (getSelectedSaleMode() === 'customer_required' && !selectedClient) {
             message_error('Debe seleccionar un cliente antes de registrar la venta');
             return false;
         }
@@ -459,9 +485,12 @@ $(function () {
         }
 
         var parameters = buildSalePayload(printAfterSave);
-        var confirmationText = printAfterSave
-            ? 'Se guardara la venta y se abrira el ticket para imprimir. Deseas continuar?'
-            : 'Estas seguro de realizar la siguiente accion?';
+        var confirmationText = getSelectedSaleMode() === 'quick'
+            ? 'Se registrara como venta rapida con Consumidor Final. Deseas continuar?'
+            : 'Se registrara la venta con los datos del cliente seleccionado. Deseas continuar?';
+        if (printAfterSave) {
+            confirmationText = 'Se guardara la venta y se abrira el ticket para imprimir. ' + confirmationText;
+        }
         var printWindow = null;
 
         submit_with_ajax(window.location.pathname, 'Notificacion', confirmationText, parameters, function (data) {

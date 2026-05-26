@@ -15,6 +15,7 @@ from app.core.sync.serializers import (
     mark_outbox_processed,
     serialize_outbox_item,
 )
+from app.core.sync.services import get_configured_remote_url, get_configured_sync_token, is_remote_sync_enabled
 
 
 def normalize_remote_url(remote_url):
@@ -43,8 +44,12 @@ class Command(BaseCommand):
         parser.add_argument('--push-only', action='store_true')
 
     def handle(self, *args, **options):
-        remote_url = options['remote']
-        token = options['token']
+        if not is_remote_sync_enabled():
+            self.stdout.write(self.style.WARNING('Sincronizacion remota pausada desde la tienda.'))
+            return
+
+        remote_url = options['remote'] or get_configured_remote_url()
+        token = options['token'] or get_configured_sync_token()
         timeout = options['timeout']
         limit = options['limit']
         pull_limit = options['pull_limit']

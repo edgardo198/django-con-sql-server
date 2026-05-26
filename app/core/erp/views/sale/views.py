@@ -89,6 +89,10 @@ class SaleBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cu
     form_class = SaleForm
     template_name = 'sale/create.html'
     success_url = reverse_lazy('erp:sale_list')
+    QUICK_SALE_MODE = 'quick'
+    CUSTOMER_REQUIRED_MODE = 'customer_required'
+    WALK_IN_CLIENT_NAMES = 'Consumidor'
+    WALK_IN_CLIENT_SURNAMES = 'Final'
 
     def get_object(self):
         if 'pk' not in self.kwargs:
@@ -181,6 +185,57 @@ class SaleBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cu
         except Exception:
             raise Exception(message)
 
+    def is_walk_in_client(self, client):
+        return bool(
+            client
+            and client.names == self.WALK_IN_CLIENT_NAMES
+            and client.surnames == self.WALK_IN_CLIENT_SURNAMES
+            and not client.dni
+            and not client.rtn
+        )
+
+    def get_sale_mode(self, payload):
+        sale_mode = payload.get('sale_mode') or self.CUSTOMER_REQUIRED_MODE
+        if sale_mode not in (self.QUICK_SALE_MODE, self.CUSTOMER_REQUIRED_MODE):
+            raise Exception('Modo de venta no valido.')
+        return sale_mode
+
+    def get_walk_in_client(self, organization):
+        client = Client.objects.filter(
+            organization=organization,
+            names=self.WALK_IN_CLIENT_NAMES,
+            surnames=self.WALK_IN_CLIENT_SURNAMES,
+            dni__isnull=True,
+            rtn__isnull=True,
+        ).first()
+
+        if client is None:
+            client = Client.objects.create(
+                organization=organization,
+                names=self.WALK_IN_CLIENT_NAMES,
+                surnames=self.WALK_IN_CLIENT_SURNAMES,
+                gender='other',
+                is_active=True,
+                user_creation=self.request.user,
+                user_updated=self.request.user,
+            )
+        elif not client.is_active:
+            client.is_active = True
+            client.user_updated = self.request.user
+            client.save(update_fields=['is_active', 'user_updated'])
+
+        return client
+
+    def resolve_sale_client_id(self, payload, organization):
+        sale_mode = self.get_sale_mode(payload)
+        if sale_mode == self.QUICK_SALE_MODE:
+            return self.get_walk_in_client(organization).id
+
+        client_id = self.get_required_int(payload.get('cli'), 'Debe seleccionar un cliente antes de registrar la venta.')
+        if not Client.objects.filter(pk=client_id, organization=organization, is_active=True).exists():
+            raise Exception('El cliente seleccionado no pertenece a la tienda activa o esta inactivo.')
+        return client_id
+
     @transaction.atomic
     def save_sale_from_payload(self, payload):
         organization = self.get_current_organization()
@@ -190,9 +245,7 @@ class SaleBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cu
             raise Exception('Solo se pueden editar ventas en borrador.')
 
         sale.organization = organization
-        client_id = self.get_required_int(payload.get('cli'), 'Debe seleccionar un cliente antes de registrar la venta.')
-        if not Client.objects.filter(pk=client_id, organization=organization, is_active=True).exists():
-            raise Exception('El cliente seleccionado no pertenece a la tienda activa o esta inactivo.')
+        client_id = self.resolve_sale_client_id(payload, organization)
 
         products = payload.get('products') or []
         if not products:
@@ -256,9 +309,7 @@ class SaleBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cu
             raise Exception('Solo se pueden editar ventas en borrador.')
 
         sale.organization = organization
-        client_id = self.get_required_int(payload.get('cli'), 'Debe seleccionar un cliente antes de registrar la venta.')
-        if not Client.objects.filter(pk=client_id, organization=organization, is_active=True).exists():
-            raise Exception('El cliente seleccionado no pertenece a la tienda activa o esta inactivo.')
+        client_id = self.resolve_sale_client_id(payload, organization)
 
         products = payload.get('products') or []
         if not products:
@@ -335,6 +386,9 @@ class SaleBaseEditorView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cu
             'current_organization': self.get_current_organization(),
             'available_organizations': self.request.user.get_accessible_organizations(),
             'object': obj,
+            'sale_initial_mode': self.QUICK_SALE_MODE
+            if obj is None or self.is_walk_in_client(getattr(obj, 'cli', None))
+            else self.CUSTOMER_REQUIRED_MODE,
         }
 
     def get(self, request, *args, **kwargs):

@@ -35,6 +35,8 @@
 {% if not inventorymovement_list_url %}
     {% url 'inventorymovement_list' as inventorymovement_list_url %}
 {% endif %}
+{% url 'backup:local' as backup_local_url %}
+{% url 'sync:panel' as sync_panel_url %}
 <nav class="main-header navbar navbar-expand navbar-dark app-top-navbar">
     <div class="container-fluid">
         {% with current_organization=request.user.get_current_organization %}
@@ -135,6 +137,10 @@
                         {% endif %}
                         {% if perms.user.view_user %}
                             <li><a href="{% url 'user:user_list' %}" class="dropdown-item"><i class="fas fa-user-friends"></i> Usuarios</a></li>
+                        {% endif %}
+                        {% if request.user.is_superuser %}
+                            <li><a href="{{ backup_local_url }}" class="dropdown-item"><i class="fas fa-database"></i> Respaldos locales</a></li>
+                            <li><a href="{{ sync_panel_url }}" class="dropdown-item"><i class="fas fa-cloud"></i> Estado de sync</a></li>
                         {% endif %}
                     </ul>
                 </li>
